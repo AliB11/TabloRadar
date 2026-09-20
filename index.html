@@ -1,0 +1,1526 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>تابلورادار — سامانه کمی سیگنال‌دهی بورس تهران</title>
+<meta name="description" content="موتور پایتونی اسکن، تابلوخوانی و رتبه‌بندی بیش از ۷۳۰ نماد بورس اوراق بهادار تهران در کمتر از دو ثانیه — مستقیماً از CDN رسمی TSETMC." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23071018'/><circle cx='16' cy='16' r='11.5' fill='none' stroke='%2316e08c' stroke-width='2'/><circle cx='21.5' cy='10.5' r='3' fill='%2316e08c'/></svg>" />
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+<link rel="preconnect" href="https://unpkg.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300..800;1,400&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  :root{
+    --bg0:#04070d; --bg1:#070d18; --panel:#0a1220; --panel2:#0c1526;
+    --line:rgba(148,163,184,.13); --line2:rgba(148,163,184,.22);
+    --ink:#e9eff9; --muted:#93a1b9; --faint:#5d6c87;
+    --green:#16e08c; --green2:#0aa96b; --red:#ff5470; --amber:#ffc14d;
+    --cyan:#4cc9ff; --violet:#9b8cff; --gold:#f5d06f;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --rad:18px;
+  }
+  *{ -webkit-tap-highlight-color:transparent; }
+  html{ scroll-behavior:smooth; }
+  body{
+    background:var(--bg0); color:var(--ink);
+    font-family:'Vazirmatn',system-ui,sans-serif;
+    overflow-x:hidden; text-rendering:optimizeLegibility;
+  }
+  ::selection{ background:rgba(22,224,140,.28); color:#fff; }
+  ::-webkit-scrollbar{ width:9px; height:9px; }
+  ::-webkit-scrollbar-track{ background:#060a12; }
+  ::-webkit-scrollbar-thumb{ background:#1b2740; border-radius:99px; border:2px solid #060a12; }
+  ::-webkit-scrollbar-thumb:hover{ background:#2a3a5e; }
+  .mono{ font-family:var(--mono); font-feature-settings:'tnum'; }
+
+  /* ── پس‌زمینه محیطی ─────────────────────────────── */
+  .aurora{ position:fixed; inset:0; pointer-events:none; z-index:0; }
+  .aurora::before{ content:""; position:absolute; inset:-20%;
+    background:
+      radial-gradient(55rem 34rem at 85% -10%, rgba(76,201,255,.075), transparent 60%),
+      radial-gradient(48rem 30rem at 8% 18%, rgba(22,224,140,.06), transparent 60%),
+      radial-gradient(44rem 34rem at 55% 110%, rgba(155,140,255,.07), transparent 62%);
+  }
+  .gridbg{ position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+    background-image:linear-gradient(rgba(148,163,184,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.05) 1px,transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask-image:radial-gradient(ellipse 90% 65% at 50% 0%,#000 30%,transparent 78%);
+    mask-image:radial-gradient(ellipse 90% 65% at 50% 0%,#000 30%,transparent 78%);
+  }
+
+  /* ── ناوبری ─────────────────────────────────────── */
+  .nav{ position:fixed; inset-inline:0; top:0; z-index:50; transition:.35s;
+    border-bottom:1px solid transparent; }
+  .nav.scrolled{ background:rgba(5,8,15,.72); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    border-bottom-color:var(--line); }
+  .navlink{ position:relative; color:var(--muted); font-size:13.5px; padding:6px 2px; transition:color .25s; }
+  .navlink::after{ content:""; position:absolute; inset-inline:0; bottom:-2px; height:2px; border-radius:2px;
+    background:linear-gradient(90deg,var(--green),var(--cyan)); transform:scaleX(0); transition:transform .3s; }
+  .navlink:hover,.navlink.active{ color:var(--ink); }
+  .navlink.active::after,.navlink:hover::after{ transform:scaleX(1); }
+  .scrollbar-top{ position:fixed; top:0; inset-inline:0; height:2px; z-index:60;
+    background:linear-gradient(270deg,var(--green),var(--cyan),var(--violet));
+    transform-origin:right; transform:scaleX(0); }
+
+  /* ── تایپوگرافی و اجزای پایه ───────────────────── */
+  .eyebrow{ display:inline-flex; align-items:center; gap:8px; font-size:12px; letter-spacing:.02em;
+    color:var(--green); background:rgba(22,224,140,.08); border:1px solid rgba(22,224,140,.22);
+    padding:5px 12px; border-radius:99px; }
+  .h-display{ font-weight:800; letter-spacing:-.02em; line-height:1.16; }
+  .grad-text{ background:linear-gradient(90deg,var(--green),#6cf2c0 40%,var(--cyan)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .glass{ background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+    border:1px solid var(--line); border-radius:var(--rad);
+    box-shadow:0 22px 60px -30px rgba(0,0,0,.75); }
+  .btn-primary{ display:inline-flex; align-items:center; gap:10px; background:linear-gradient(135deg,var(--green),#0cc57c);
+    color:#04110a!important; font-weight:700; font-size:14.5px; padding:13px 26px; border-radius:14px;
+    box-shadow:0 10px 34px -8px rgba(22,224,140,.5), inset 0 1px 0 rgba(255,255,255,.25); transition:.3s; }
+  .btn-primary:hover{ transform:translateY(-2px); box-shadow:0 18px 44px -8px rgba(22,224,140,.62); }
+  .btn-ghost{ display:inline-flex; align-items:center; gap:10px; color:var(--ink); font-size:14px; padding:13px 24px;
+    border-radius:14px; border:1px solid var(--line2); background:rgba(255,255,255,.02); transition:.3s; }
+  .btn-ghost:hover{ border-color:rgba(22,224,140,.5); background:rgba(22,224,140,.06); }
+
+  .pulse-dot{ width:8px; height:8px; border-radius:99px; background:var(--green); position:relative; }
+  .pulse-dot::after{ content:""; position:absolute; inset:-4px; border-radius:99px; background:var(--green);
+    opacity:.5; animation:ping 1.6s ease-out infinite; }
+  @keyframes ping{ 0%{ transform:scale(.5); opacity:.6 } 80%,100%{ transform:scale(1.8); opacity:0 } }
+
+  /* ── نمایان‌سازی اسکرول ─────────────────────────── */
+  .reveal{ opacity:0; transform:translateY(26px); transition:opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in{ opacity:1; transform:none; }
+
+  /* ── مارکی تیکر ─────────────────────────────────── */
+  .ticker{ border-block:1px solid var(--line); background:rgba(6,10,18,.7); overflow:hidden; position:relative; }
+  .ticker::before,.ticker::after{ content:""; position:absolute; top:0; bottom:0; width:120px; z-index:2; pointer-events:none; }
+  .ticker::before{ right:0; background:linear-gradient(to right,var(--bg0),transparent); }
+  .ticker::after{ left:0; background:linear-gradient(to left,var(--bg0),transparent); }
+  .ticker-track{ display:flex; gap:0; width:max-content; animation:scroll 46s linear infinite; }
+  .ticker:hover .ticker-track{ animation-play-state:paused; }
+  @keyframes scroll{ to{ transform:translateX(-50%); } }
+  .tick-item{ display:flex; align-items:center; gap:10px; padding:12px 26px; border-left:1px solid var(--line); white-space:nowrap; font-size:13px; }
+
+  /* ── جدول داشبورد ───────────────────────────────── */
+  .dtable{ border-collapse:separate; border-spacing:0; width:100%; min-width:1060px; font-size:13.5px; }
+  .dtable th{ font-size:11.5px; color:var(--faint); font-weight:500; text-align:right; padding:14px 14px;
+    border-bottom:1px solid var(--line); white-space:nowrap; background:var(--panel); }
+  .dtable td{ padding:13px 14px; border-bottom:1px solid rgba(148,163,184,.07); vertical-align:middle; white-space:nowrap; }
+  .dtable tbody tr{ cursor:pointer; transition:background .2s; }
+  .dtable tbody tr:hover{ background:rgba(22,224,140,.045); }
+  .dtable tbody tr.active{ background:rgba(22,224,140,.07);
+    box-shadow:inset 3px 0 0 var(--green); }
+  .rank{ width:26px; height:26px; border-radius:8px; display:grid; place-items:center; font-family:var(--mono);
+    font-size:12px; background:rgba(148,163,184,.1); color:var(--muted); }
+  .rank.top{ background:linear-gradient(135deg,rgba(22,224,140,.25),rgba(22,224,140,.08)); color:var(--green); border:1px solid rgba(22,224,140,.3); }
+  .badge-up{ color:var(--green); } .badge-down{ color:var(--red); }
+  .tdot{ width:9px; height:9px; border-radius:99px; display:inline-block; border:1px solid var(--line2); }
+  .tdot.bull{ background:var(--green); border-color:var(--green); box-shadow:0 0 10px rgba(22,224,140,.7); }
+  .tdot.bear{ background:rgba(255,84,112,.9); border-color:var(--red); }
+  .score-badge{ font-family:var(--mono); font-weight:700; font-size:13px; padding:4px 10px; border-radius:9px; }
+  .score-a{ color:var(--green); background:rgba(22,224,140,.13); border:1px solid rgba(22,224,140,.35); }
+  .score-b{ color:#9ee9c8; background:rgba(22,224,140,.07); border:1px solid rgba(22,224,140,.2); }
+  .hchip{ font-size:11px; padding:4px 10px; border-radius:99px; border:1px solid; display:inline-flex; align-items:center; gap:5px; }
+  .h-short{ color:var(--green); border-color:rgba(22,224,140,.4); background:rgba(22,224,140,.08); }
+  .h-mid{ color:var(--cyan); border-color:rgba(76,201,255,.35); background:rgba(76,201,255,.07); }
+  .h-long{ color:var(--violet); border-color:rgba(155,140,255,.35); background:rgba(155,140,255,.08); }
+  .pwr-wrap{ width:74px; height:5px; border-radius:99px; background:rgba(148,163,184,.14); overflow:hidden; display:inline-block; vertical-align:middle; }
+  .pwr-fill{ height:100%; border-radius:99px; background:linear-gradient(90deg,var(--green2),var(--green)); }
+
+  /* ── پنل جزئیات ─────────────────────────────────── */
+  .fbar{ height:9px; border-radius:99px; background:rgba(148,163,184,.12); overflow:hidden; }
+  .fbar .fill{ height:100%; border-radius:99px; width:0; transition:width .9s cubic-bezier(.2,.8,.2,1); }
+  .stat-mini{ background:rgba(255,255,255,.028); border:1px solid var(--line); border-radius:14px; padding:12px 14px; }
+
+  /* ── پایپ‌لاین ──────────────────────────────────── */
+  .pnode{ position:relative; }
+  .pconn{ display:none; }
+  .pflow-line{ position:absolute; top:37px; right:9%; left:9%; height:2px; z-index:0;
+    background:repeating-linear-gradient(270deg,var(--green) 0 7px,transparent 7px 13px);
+    animation:dash 1.1s linear infinite; opacity:.5; }
+  .pnode{ position:relative; z-index:1; }
+  @keyframes dash{ to{ background-position:13px 0; } }
+  .pcard{ transition:transform .35s, border-color .35s, box-shadow .35s; }
+  .pcard:hover{ transform:translateY(-6px); border-color:rgba(22,224,140,.4)!important;
+    box-shadow:0 24px 50px -24px rgba(22,224,140,.25); }
+
+  /* ── پنجره کد ───────────────────────────────────── */
+  .codewin{ background:#070c14; border:1px solid var(--line); border-radius:16px; overflow:hidden;
+    box-shadow:0 40px 90px -40px rgba(0,0,0,.8); }
+  .codetab{ font-family:var(--mono); font-size:12px; padding:10px 16px; color:var(--faint); white-space:nowrap;
+    border-bottom:2px solid transparent; transition:.25s; }
+  .codetab:hover{ color:var(--muted); }
+  .codetab.active{ color:var(--green); border-bottom-color:var(--green); background:rgba(22,224,140,.05); }
+  .codearea{ display:flex; font-family:var(--mono); font-size:12.5px; line-height:1.8; }
+  .gutter{ display:flex; flex-direction:column; padding:18px 0; color:#3a4763; text-align:left;
+    min-width:44px; padding-inline-start:8px; user-select:none; border-left:1px solid var(--line);
+    position:sticky; right:0; background:#070c14; }
+  .gutter span{ padding-inline-end:10px; }
+  pre.codebody{ margin:0; padding:18px 18px 26px; overflow-x:auto; flex:1; }
+  pre.codebody code{ font-family:var(--mono)!important; font-size:12.5px; line-height:1.8; background:none!important; padding:0!important; }
+
+  /* ── رنگ‌بندی سینتکس پایتون ─────────────────────── */
+  .hljs{ color:#c9d6ea; }
+  .hljs-comment,.hljs-quote{ color:#54618089; color:#546180; font-style:italic; }
+  .hljs-keyword,.hljs-selector-tag,.hljs-built_in.class{ color:#b48cff; }
+  .hljs-string,.hljs-regexp{ color:#39d98a; }
+  .hljs-number,.hljs-literal{ color:#ffb454; }
+  .hljs-title,.hljs-title.function_{ color:#5ecbff; }
+  .hljs-title.class_,.hljs-type{ color:#6ee7d0ff; color:#6ee7d0; }
+  .hljs-attr,.hljs-variable,.hljs-template-variable{ color:#e9eff9; }
+  .hljs-name,.hljs-section{ color:#5ecbff; }
+  .hljs-built_in{ color:#5ecbff; }
+  .hljs-params{ color:#c9d6ea; }
+  .hljs-meta{ color:#ff8fab; }
+  .hljs-deletion{ color:var(--red); } .hljs-addition{ color:var(--green); }
+
+  /* ── ترمینال و JSON ─────────────────────────────── */
+  .term{ background:#05080f; border:1px solid var(--line); border-radius:16px; overflow:hidden; direction:ltr; }
+  .termbody{ font-family:var(--mono); font-size:12px; line-height:2; padding:20px 22px; color:#a7f3d0; overflow-x:auto; }
+  .jsonbody{ font-family:var(--mono); font-size:12px; line-height:1.9; padding:20px 22px; overflow-x:auto; color:#c9d6ea; direction:ltr; }
+  .j-key{ color:#5ecbff; } .j-str{ color:#39d98a; } .j-num{ color:#ffb454; } .j-punc{ color:#546180; }
+  .col-cell{ display:inline-block; text-align:right; }
+
+  .caret{ display:inline-block; width:8px; height:16px; background:var(--green); vertical-align:-2px; animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0 } }
+
+  .veto-card{ transition:transform .3s, border-color .3s; }
+  .veto-card:hover{ transform:translateY(-4px); border-color:rgba(255,84,112,.4)!important; }
+
+  .stat-big .num{ font-family:var(--mono); font-weight:800; font-size:clamp(28px,3.6vw,42px); line-height:1; }
+
+  @media (prefers-reduced-motion:reduce){
+    .ticker-track{ animation:none; }
+    .pconn{ animation:none; }
+    .reveal{ transition:none; opacity:1; transform:none; }
+    *{ animation-duration:.01s!important; transition-duration:.01s!important; }
+  }
+</style>
+</head>
+<body class="antialiased">
+<div class="aurora"></div>
+<div class="gridbg"></div>
+<div class="scrollbar-top" id="scrollbar"></div>
+
+<!-- ══════════ ناوبری ══════════ -->
+<nav class="nav" id="nav">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[68px] flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-3">
+      <span class="relative grid place-items-center w-9 h-9 rounded-xl border border-[rgba(22,224,140,.35)] bg-[rgba(22,224,140,.08)]">
+        <i data-lucide="radar" class="w-4.5 h-4.5 text-[var(--green)]" style="width:18px;height:18px"></i>
+      </span>
+      <span class="font-extrabold text-[16.5px] tracking-tight">تابلو<span class="grad-text">رادار</span></span>
+      <span class="mono hidden sm:inline-block text-[10px] text-[var(--faint)] border border-[var(--line)] rounded-md px-1.5 py-0.5 mt-0.5">TSE·QUANT v2.1</span>
+    </a>
+    <div class="hidden lg:flex items-center gap-7">
+      <a class="navlink" href="#signals">سیگنال‌ها</a>
+      <a class="navlink" href="#engine">موتور امتیازدهی</a>
+      <a class="navlink" href="#pipeline">معماری</a>
+      <a class="navlink" href="#code">کد منبع</a>
+      <a class="navlink" href="#output">خروجی</a>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="hidden md:flex items-center gap-2.5 border border-[var(--line)] rounded-xl px-3.5 py-2 bg-[rgba(255,255,255,.02)]">
+        <span class="pulse-dot" id="mkt-dot"></span>
+        <span class="text-[12px] text-[var(--muted)]" id="mkt-status">بازار باز</span>
+        <span class="mono text-[12px] text-[var(--ink)]" dir="ltr" id="tehran-clock">--:--:--</span>
+      </div>
+      <a href="#signals" class="btn-primary !py-2.5 !px-4 text-[13px] hidden sm:inline-flex">
+        <i data-lucide="zap" style="width:15px;height:15px"></i> سیگنال‌های امروز
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════ هیرو ══════════ -->
+<header id="top" class="relative min-h-[100svh] flex flex-col justify-center overflow-hidden">
+  <canvas id="hero-canvas" class="absolute inset-0 w-full h-full opacity-60" style="pointer-events:none;
+    -webkit-mask-image:linear-gradient(to top,transparent 0%,#000 22%,#000 78%,transparent 100%);
+    mask-image:linear-gradient(to top,transparent 0%,#000 22%,#000 78%,transparent 100%)"></canvas>
+
+  <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-36 pb-24 w-full text-center">
+    <div class="reveal flex justify-center">
+      <span class="eyebrow">
+        <i data-lucide="cpu" style="width:13px;height:13px"></i>
+        سامانه کمی اسکن بازار • پایتون 3.11 • بدون فریم‌ورک وب
+      </span>
+    </div>
+    <h1 class="reveal h-display text-[clamp(40px,7.2vw,86px)] mt-7" style="transition-delay:.08s">
+      ده سیگنال برتر بازار،<br />
+      <span class="grad-text">در ۱.۸۳ ثانیه.</span>
+    </h1>
+    <p class="reveal max-w-2xl mx-auto mt-7 text-[16px] leading-8 text-[var(--muted)]" style="transition-delay:.16s">
+      موتور پایتونی تابلوخوانی که به‌صورت هم‌زمان <b class="text-[var(--ink)]">دیده‌بان بازار</b> و <b class="text-[var(--ink)]">جریان نقدینگی حقیقی–حقوقی</b> را مستقیماً از
+      CDN رسمی بورس اوراق بهادار تهران دریافت می‌کند، آن‌ها را روی <span class="mono text-[var(--cyan)] text-[14px]" dir="ltr">insCode</span> جوین می‌زند،
+      سوابق تعدیل‌شده را با کش Parquet واکشی می‌کند و با تلفیق فرمول‌های تابلوخوانی و تکنیکال چندبازه،
+      <b class="text-[var(--ink)]">۱۰ نماد برتر</b> را رتبه‌بندی و معرفی می‌کند.
+    </p>
+    <div class="reveal flex flex-wrap justify-center gap-4 mt-10" style="transition-delay:.24s">
+      <a href="#signals" class="btn-primary">
+        <i data-lucide="radar" style="width:16px;height:16px"></i>
+        مشاهده ۱۰ نماد برتر
+      </a>
+      <a href="#code" class="btn-ghost">
+        <i data-lucide="terminal" style="width:16px;height:16px"></i>
+        کاوش در کد پایتون
+      </a>
+    </div>
+
+    <div class="reveal grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 max-w-3xl mx-auto" style="transition-delay:.32s">
+      <div class="glass stat-big p-5">
+        <div class="num grad-text" dir="ltr"><span data-count="730" data-dec="0">0</span>+</div>
+        <div class="text-[12px] text-[var(--faint)] mt-2">نماد اسکن‌شده</div>
+      </div>
+      <div class="glass stat-big p-5">
+        <div class="num text-[var(--ink)]" dir="ltr"><span data-count="1.83" data-dec="2">0</span><span class="text-[18px] text-[var(--faint)]">s</span></div>
+        <div class="text-[12px] text-[var(--faint)] mt-2">زمان پردازش کامل</div>
+      </div>
+      <div class="glass stat-big p-5">
+        <div class="num text-[var(--red)]" dir="ltr"><span data-count="41" data-dec="0">0</span></div>
+        <div class="text-[12px] text-[var(--faint)] mt-2">وتوی فیلترها</div>
+      </div>
+      <div class="glass stat-big p-5">
+        <div class="num grad-text" dir="ltr"><span data-count="10" data-dec="0">0</span></div>
+        <div class="text-[12px] text-[var(--faint)] mt-2">سیگنال نهایی</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="absolute bottom-7 inset-inline-0 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 text-[var(--faint)]">
+    <span class="text-[11px]">اسکرول کنید</span>
+    <i data-lucide="arrow-down" style="width:15px;height:15px;animation:floaty 1.8s ease-in-out infinite"></i>
+  </div>
+  <style>@keyframes floaty{50%{transform:translateY(6px)}}</style>
+</header>
+
+<!-- ══════════ نوار تیکر ══════════ -->
+<div class="ticker reveal relative z-10">
+  <div class="ticker-track" id="ticker-track" dir="ltr"></div>
+</div>
+
+<!-- ══════════ داشبورد سیگنال‌ها ══════════ -->
+<section id="signals" class="relative z-10 py-24 lg:py-32">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="reveal flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div>
+        <span class="eyebrow"><i data-lucide="list-ordered" style="width:13px;height:13px"></i> رتبه‌بندی نهایی — زمان تحلیل: ۱۲:۲۵</span>
+        <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">۱۰ نماد برتر امروز بازار</h2>
+        <p class="text-[var(--muted)] mt-3 max-w-xl text-[14.5px] leading-7">
+          پس از عبور از فیلترهای وتوکننده نقدشوندگی و اعتبار نوسان، امتیاز جامع هر نماد از ترکیب وزنی چهار عامل محاسبه و نفرات برتر استخراج شده‌اند.
+          <span class="text-[var(--faint)] text-[12px]">(داده نمایشی)</span>
+        </p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <span class="hchip h-mid mono" dir="ltr">Inner Join · insCode</span>
+        <span class="hchip h-long mono" dir="ltr">Parquet Cache</span>
+        <span class="hchip h-short">محاسبات برداری</span>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-[1fr_360px] gap-6 mt-10 items-start">
+      <!-- جدول -->
+      <div class="glass reveal overflow-hidden" style="border-radius:20px">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-[var(--line)]">
+          <div class="flex items-center gap-2.5">
+            <i data-lucide="activity" class="text-[var(--green)]" style="width:16px;height:16px"></i>
+            <span class="font-bold text-[15px]">دیده‌بان امتیازدهی‌شده</span>
+          </div>
+          <span class="mono text-[11.5px] text-[var(--faint)]" dir="ltr">scan: 1.834s · rows: 730 → 10</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="dtable">
+            <thead>
+              <tr>
+                <th>#</th><th>نماد</th><th>آخرین معامله <span class="text-[10px]">(تومان)</span></th>
+                <th>تغییر٪</th><th>سرانه خرید <span class="text-[10px]">(م.ت)</span></th>
+                <th>قدرت خ/ف</th><th>حجم مشکوک</th>
+                <th class="hidden md:table-cell">روند</th><th>ک/م/ب</th><th>امتیاز</th><th>افق پیشنهادی</th>
+              </tr>
+            </thead>
+            <tbody id="signal-rows"></tbody>
+          </table>
+        </div>
+        <div class="px-5 py-3.5 flex items-center gap-2 text-[12px] text-[var(--faint)] border-t border-[var(--line)]">
+          <i data-lucide="mouse-pointer-click" style="width:13px;height:13px"></i>
+          روی هر ردیف کلیک کنید تا بازشکافی امتیاز نمایش داده شود.
+        </div>
+      </div>
+
+      <!-- بازشکافی -->
+      <aside class="lg:sticky lg:top-24 reveal" id="detail-panel" style="transition-delay:.1s"></aside>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ موتور امتیازدهی ══════════ -->
+<section id="engine" class="relative z-10 py-24 lg:py-32" style="background:linear-gradient(180deg,transparent,rgba(10,17,32,.5) 18%,rgba(10,17,32,.5) 82%,transparent)">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-2xl mx-auto">
+      <span class="eyebrow"><i data-lucide="gauge" style="width:13px;height:13px"></i> ScoringEngine — مدل چندعاملی</span>
+      <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">از پالس تابلو تا امتیاز <span class="grad-text">۰ تا ۱۰۰</span></h2>
+      <p class="text-[var(--muted)] mt-4 text-[14.5px] leading-7">
+        هر عامل ابتدا به زیرامتیاز پایه‌صدوزنی نگاشت (Sigmoid/Tanh نرم) می‌شود، سپس با ضرایب وزنی زیر ترکیب می‌گردد:
+      </p>
+      <div class="mono mt-5 inline-flex items-center gap-1.5 flex-wrap justify-center text-[13px]" dir="ltr">
+        <span class="text-[var(--faint)]">Score =</span>
+        <span class="text-[var(--green)]">0.35·T</span><span class="text-[var(--faint)]">+</span>
+        <span class="text-[var(--cyan)]">0.25·S</span><span class="text-[var(--faint)]">+</span>
+        <span class="text-[var(--violet)]">0.25·M</span><span class="text-[var(--faint)]">+</span>
+        <span class="text-[var(--amber)]">0.15·L</span>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-[340px_1fr] gap-8 mt-14 items-center">
+      <!-- دونات وزن -->
+      <div class="reveal flex flex-col items-center">
+        <svg viewBox="0 0 42 42" class="w-[300px] h-[300px]" style="filter:drop-shadow(0 0 24px rgba(22,224,140,.15))">
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="rgba(148,163,184,.08)" stroke-width="4.6"/>
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--green)"  stroke-width="4.6" stroke-linecap="butt"
+                  stroke-dasharray="33.6 66.4" stroke-dashoffset="26.25" class="dseg" transform="rotate(0 21 21)"/>
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--cyan)"   stroke-width="4.6"
+                  stroke-dasharray="23.6 76.4" stroke-dashoffset="-8.75" class="dseg"/>
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--violet)" stroke-width="4.6"
+                  stroke-dasharray="23.6 76.4" stroke-dashoffset="-33.75" class="dseg"/>
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--amber)"  stroke-width="4.6"
+                  stroke-dasharray="13.6 86.4" stroke-dashoffset="-58.75" class="dseg"/>
+          <text x="21" y="20.4" text-anchor="middle" fill="var(--ink)" font-family="JetBrains Mono" font-weight="800" font-size="6.4">100</text>
+          <text x="21" y="26.2" text-anchor="middle" fill="var(--faint)" font-size="2.6">ΣW = 1.00</text>
+        </svg>
+        <div class="grid grid-cols-2 gap-x-8 gap-y-2 mt-2 text-[12.5px]">
+          <span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-full" style="background:var(--green)"></i><span class="text-[var(--muted)]">تابلوخوانی</span><b class="mono" dir="ltr">35%</b></span>
+          <span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-full" style="background:var(--cyan)"></i><span class="text-[var(--muted)]">کوتاه‌مدت</span><b class="mono" dir="ltr">25%</b></span>
+          <span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-full" style="background:var(--violet)"></i><span class="text-[var(--muted)]">میان‌مدت</span><b class="mono" dir="ltr">25%</b></span>
+          <span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-full" style="background:var(--amber)"></i><span class="text-[var(--muted)]">بلندمدت</span><b class="mono" dir="ltr">15%</b></span>
+        </div>
+      </div>
+
+      <!-- کارت‌های عامل -->
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="glass pcard p-6 reveal">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="grid place-items-center w-10 h-10 rounded-xl" style="background:rgba(22,224,140,.1);border:1px solid rgba(22,224,140,.3)">
+                <i data-lucide="eye" class="text-[var(--green)]" style="width:18px;height:18px"></i></span>
+              <b class="text-[15.5px]">تابلوخوانی و پول هوشمند</b>
+            </div>
+            <span class="mono text-[12px] text-[var(--green)]" dir="ltr">w=.35</span>
+          </div>
+          <ul class="mt-4 space-y-2 text-[13px] text-[var(--muted)] leading-6">
+            <li class="flex gap-2"><span class="text-[var(--green)] mono" dir="ltr">·</span>سرانه خرید در برابر سرانه فروش حقیقی</li>
+            <li class="flex gap-2"><span class="text-[var(--green)] mono" dir="ltr">·</span>ضریب حجم مشکوک <span class="mono text-[11px]" dir="ltr">Vol / MA30</span></li>
+            <li class="flex gap-2"><span class="text-[var(--green)] mono" dir="ltr">·</span>عدم تعادل سفارش‌ها (Order Book Imbalance)</li>
+            <li class="flex gap-2"><span class="text-[var(--green)] mono" dir="ltr">·</span>تیک صعودی آخرین ساعت <span class="mono text-[11px]" dir="ltr">(pl−pc)/pc</span></li>
+          </ul>
+        </div>
+        <div class="glass pcard p-6 reveal" style="transition-delay:.08s">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="grid place-items-center w-10 h-10 rounded-xl" style="background:rgba(76,201,255,.09);border:1px solid rgba(76,201,255,.3)">
+                <i data-lucide="zap" class="text-[var(--cyan)]" style="width:18px;height:18px"></i></span>
+              <b class="text-[15.5px]">افق کوتاه‌مدت</b>
+            </div>
+            <span class="mono text-[12px] text-[var(--cyan)]" dir="ltr">w=.25</span>
+          </div>
+          <ul class="mt-4 space-y-2 text-[13px] text-[var(--muted)] leading-6">
+            <li class="flex gap-2"><span class="text-[var(--cyan)]">·</span><span dir="ltr" class="mono text-[11.5px] mt-0.5">RSI(14) &gt; 45</span> یا خروج از اشباع فروش</li>
+            <li class="flex gap-2"><span class="text-[var(--cyan)]">·</span>کراس صعودی <span class="mono text-[11.5px]" dir="ltr">EMA(9)↑EMA(21)</span></li>
+            <li class="flex gap-2"><span class="text-[var(--cyan)]">·</span>مومنتوم تیک مثبت پایانی</li>
+          </ul>
+        </div>
+        <div class="glass pcard p-6 reveal" style="transition-delay:.16s">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="grid place-items-center w-10 h-10 rounded-xl" style="background:rgba(155,140,255,.09);border:1px solid rgba(155,140,255,.3)">
+                <i data-lucide="trending-up" class="text-[var(--violet)]" style="width:18px;height:18px"></i></span>
+              <b class="text-[15.5px]">افق میان‌مدت</b>
+            </div>
+            <span class="mono text-[12px] text-[var(--violet)]" dir="ltr">w=.25</span>
+          </div>
+          <ul class="mt-4 space-y-2 text-[13px] text-[var(--muted)] leading-6">
+            <li class="flex gap-2"><span class="text-[var(--violet)]">·</span>کراس صعودی <span class="mono text-[11.5px]" dir="ltr">SMA(20)↑SMA(50)</span></li>
+            <li class="flex gap-2"><span class="text-[var(--violet)]">·</span>هیستوگرام مثبت <span class="mono text-[11.5px]" dir="ltr">MACD(12,26,9)</span></li>
+            <li class="flex gap-2"><span class="text-[var(--violet)]">·</span>شکست باند میانی بولینگر <span class="mono text-[11.5px]" dir="ltr">BB(20,2)</span></li>
+          </ul>
+        </div>
+        <div class="glass pcard p-6 reveal" style="transition-delay:.24s">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="grid place-items-center w-10 h-10 rounded-xl" style="background:rgba(255,193,77,.09);border:1px solid rgba(255,193,77,.3)">
+                <i data-lucide="layers" class="text-[var(--amber)]" style="width:18px;height:18px"></i></span>
+              <b class="text-[15.5px]">افق بلندمدت</b>
+            </div>
+            <span class="mono text-[12px] text-[var(--amber)]" dir="ltr">w=.15</span>
+          </div>
+          <ul class="mt-4 space-y-2 text-[13px] text-[var(--muted)] leading-6">
+            <li class="flex gap-2"><span class="text-[var(--amber)]">·</span>تثبیت قیمت بالای <span class="mono text-[11.5px]" dir="ltr">SMA(200)</span></li>
+            <li class="flex gap-2"><span class="text-[var(--amber)]">·</span>شیب مثبت SMA دویست‌روزه در ۲۰ روز اخیر</li>
+            <li class="flex gap-2"><span class="text-[var(--amber)]">·</span>فاصله سالم از مقاومت تاریخی</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- فیلترهای وتو -->
+    <div class="reveal mt-14">
+      <div class="flex items-center gap-3 mb-5">
+        <i data-lucide="shield-alert" class="text-[var(--red)]" style="width:18px;height:18px"></i>
+        <h3 class="font-extrabold text-[18px]">فیلترهای وتوکننده <span class="text-[var(--faint)] font-normal text-[13px]">— حذف قطعی پیش از امتیازدهی · ۴۱ نماد در اجرای اخیر</span></h3>
+      </div>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="glass veto-card p-6">
+          <div class="flex items-center gap-3">
+            <span class="grid place-items-center w-10 h-10 rounded-xl" style="background:rgba(255,84,112,.09);border:1px solid rgba(255,84,112,.3)">
+              <i data-lucide="coins" class="text-[var(--red)]" style="width:18px;height:18px"></i></span>
+            <b>ارزش معاملات ناکافی</b>
+          </div>
+          <p class="mono text-[12px] text-[var(--muted)] mt-4" dir="ltr">qTotTran5J &lt; 50,000,000,000 R</p>
+          <p class="text-[13px] text-[var(--muted)] mt-2 leading-6">ریسک نقدشوندگی؛ خروج سخت از پوزیشن در بازار پرتلاطم.</p>
+          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr">✕ 18 symbols vetoed</span>
+        </div>
+        <div class="glass veto-card p-6">
+          <div class="flex items-center gap-3">
+            <span class="grid place-items-center w-10 h-10 rounded-xl" style="background:rgba(255,84,112,.09);border:1px solid rgba(255,84,112,.3)">
+              <i data-lucide="waves" class="text-[var(--red)]" style="width:18px;height:18px"></i></span>
+            <b>حجم پایین‌تر از حجم مبنا</b>
+          </div>
+          <p class="mono text-[12px] text-[var(--muted)] mt-4" dir="ltr">tVol &lt; baseVol → veto</p>
+          <p class="text-[13px] text-[var(--muted)] mt-2 leading-6">نوسان بدون پشتوانه حجم فاقد اعتبار سیگنالی است.</p>
+          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr">✕ 14 symbols vetoed</span>
+        </div>
+        <div class="glass veto-card p-6">
+          <div class="flex items-center gap-3">
+            <span class="grid place-items-center w-10 h-10 rounded-xl" style="background:rgba(255,84,112,.09);border:1px solid rgba(255,84,112,.3)">
+              <i data-lucide="lock" class="text-[var(--red)]" style="width:18px;height:18px"></i></span>
+            <b>صف فروش قفل</b>
+          </div>
+          <p class="mono text-[12px] text-[var(--muted)] mt-4" dir="ltr">pl == pmin &amp;&amp; qd1 == 0 → veto</p>
+          <p class="text-[13px] text-[var(--muted)] mt-2 leading-6">ایجاب صفر در کف قیمت؛ ریسک گیر افتادن در صف فروش سنگین.</p>
+          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr">✕ 9 symbols vetoed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ پایپ‌لاین معماری ══════════ -->
+<section id="pipeline" class="relative z-10 py-24 lg:py-32">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-2xl mx-auto">
+      <span class="eyebrow"><i data-lucide="git-branch" style="width:13px;height:13px"></i> معماری پایپ‌لاین</span>
+      <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">از CDN تا سیگنال، در پنج گام</h2>
+      <p class="text-[var(--muted)] mt-4 text-[14.5px] leading-7">ماژولار، Type-hinted، تحمل‌پذیر در برابر خطای شبکه با مکانیزم Retry و Backoff نمایی.</p>
+    </div>
+
+    <div class="relative mt-14 grid lg:grid-cols-5 gap-4 lg:gap-0" id="pflow">
+      <span class="pflow-line hidden lg:block"></span>
+      <div class="pnode reveal">
+        <div class="glass pcard p-5 lg:mx-[15px] h-full relative">
+          <span class="absolute top-4 left-4 mono text-[11px] text-[var(--faint)]" dir="ltr">01</span>
+          <span class="grid place-items-center w-11 h-11 rounded-xl mb-4" style="background:rgba(76,201,255,.09);border:1px solid rgba(76,201,255,.3)">
+            <i data-lucide="satellite-dish" class="text-[var(--cyan)]" style="width:20px;height:20px"></i></span>
+          <b class="text-[14.5px]">اتصال به CDN بورس</b>
+          <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">data_provider.py</p>
+          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">کلاینت <span class="mono" style="font-size:11px" dir="ltr">httpx</span> با هدر مرورگر واقعی، تایم‌اوت ۱۰‌ثانیه و ۴ تلاش مجدد با پس‌روی نمایی.</p>
+        </div>
+        <span class="pconn hidden lg:block" style="right:-15px"></span>
+      </div>
+      <div class="pnode reveal" style="transition-delay:.07s">
+        <div class="glass pcard p-5 lg:mx-[15px] h-full relative">
+          <span class="absolute top-4 left-4 mono text-[11px] text-[var(--faint)]" dir="ltr">02</span>
+          <span class="grid place-items-center w-11 h-11 rounded-xl mb-4" style="background:rgba(22,224,140,.09);border:1px solid rgba(22,224,140,.3)">
+            <i data-lucide="eye" class="text-[var(--green)]" style="width:20px;height:20px"></i></span>
+          <b class="text-[14.5px]">تابلوخوانی برداری</b>
+          <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">tablokhani.py</p>
+          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">سرانه، قدرت خریدار، حجم مشکوک، عدم تعادل صف و تیک آخرین ساعت — پاندا-برداری روی کل بازار.</p>
+        </div>
+        <span class="pconn hidden lg:block" style="right:-15px"></span>
+      </div>
+      <div class="pnode reveal" style="transition-delay:.14s">
+        <div class="glass pcard p-5 lg:mx-[15px] h-full relative">
+          <span class="absolute top-4 left-4 mono text-[11px] text-[var(--faint)]" dir="ltr">03</span>
+          <span class="grid place-items-center w-11 h-11 rounded-xl mb-4" style="background:rgba(155,140,255,.09);border:1px solid rgba(155,140,255,.3)">
+            <i data-lucide="trending-up" class="text-[var(--violet)]" style="width:20px;height:20px"></i></span>
+          <b class="text-[14.5px]">تکنیکال چندبازه</b>
+          <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">technical.py</p>
+          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">RSI، کراس‌های EMA/SMA، هیستوگرام MACD و باند بولینگر روی ۲۲۰ کندل تعدیل‌شده کش‌شده.</p>
+        </div>
+        <span class="pconn hidden lg:block" style="right:-15px"></span>
+      </div>
+      <div class="pnode reveal" style="transition-delay:.21s">
+        <div class="glass pcard p-5 lg:mx-[15px] h-full relative">
+          <span class="absolute top-4 left-4 mono text-[11px] text-[var(--faint)]" dir="ltr">04</span>
+          <span class="grid place-items-center w-11 h-11 rounded-xl mb-4" style="background:rgba(255,193,77,.09);border:1px solid rgba(255,193,77,.3)">
+            <i data-lucide="gauge" class="text-[var(--amber)]" style="width:20px;height:20px"></i></span>
+          <b class="text-[14.5px]">امتیازدهی + وتو</b>
+          <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">scoring_engine.py</p>
+          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">نگشت نرم به زیرامتیاز، ترکیب وزنی، اعمال ماسک‌های وتو و استخراج <span class="mono" dir="ltr">nlargest(10)</span>.</p>
+        </div>
+        <span class="pconn hidden lg:block" style="right:-15px"></span>
+      </div>
+      <div class="pnode reveal" style="transition-delay:.28s">
+        <div class="glass pcard p-5 lg:mx-[15px] h-full relative">
+          <span class="absolute top-4 left-4 mono text-[11px] text-[var(--faint)]" dir="ltr">05</span>
+          <span class="grid place-items-center w-11 h-11 rounded-xl mb-4" style="background:rgba(22,224,140,.09);border:1px solid rgba(22,224,140,.3)">
+            <i data-lucide="file-json" class="text-[var(--green)]" style="width:20px;height:20px"></i></span>
+          <b class="text-[14.5px]">خروجی سیگنال</b>
+          <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">cli_dashboard.py</p>
+          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">جدول رنگی <span class="mono" style="font-size:11px" dir="ltr">rich</span> در کنسول و ذخیره رتبه‌بندی در <span class="mono" style="font-size:11px" dir="ltr">signals.json</span>.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ استک کد ══════════ -->
+<section id="code" class="relative z-10 py-24 lg:py-32" style="background:linear-gradient(180deg,transparent,rgba(10,17,32,.5) 18%,rgba(10,17,32,.5) 82%,transparent)">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-2xl mx-auto">
+      <span class="eyebrow"><i data-lucide="terminal" style="width:13px;height:13px"></i> کد منبع پروژه</span>
+      <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">هفت ماژول. <span class="grad-text">صفر فریم‌ورک.</span></h2>
+      <p class="text-[var(--muted)] mt-4 text-[14.5px] leading-7">
+        معماری کامل سامانه با پایتون 3.10+ — آماده اجرا. روی هر تب کلیک کنید و با یک کلیک کپی بگیرید.
+      </p>
+    </div>
+
+    <div class="codewin reveal mt-12" dir="ltr">
+      <div class="flex items-center gap-3 px-5 py-3.5 border-b border-[var(--line)] bg-[rgba(255,255,255,.02)]">
+        <span class="flex gap-1.5">
+          <i class="w-3 h-3 rounded-full" style="background:#ff5f57"></i>
+          <i class="w-3 h-3 rounded-full" style="background:#febc2e"></i>
+          <i class="w-3 h-3 rounded-full" style="background:#28c840"></i>
+        </span>
+        <span class="mono text-[11.5px] text-[var(--faint)]" id="code-title">tse-signal-scanner / config.py</span>
+        <button id="copy-btn" class="mr-auto flex items-center gap-1.5 text-[11.5px] mono text-[var(--faint)] hover:text-[var(--green)] transition-colors border border-[var(--line)] rounded-lg px-3 py-1.5" style="direction:rtl">
+          <i data-lucide="copy" style="width:13px;height:13px"></i><span id="copy-label">کپی</span>
+        </button>
+      </div>
+      <div class="flex overflow-x-auto border-b border-[var(--line)]" id="code-tabs" style="scrollbar-width:none"></div>
+      <div class="codearea">
+        <div class="gutter" id="code-gutter"></div>
+        <pre class="codebody"><code class="language-python" id="code-body"></code></pre>
+      </div>
+    </div>
+
+    <div class="reveal flex flex-wrap items-center gap-3 mt-6 justify-center text-[12.5px]">
+      <span class="text-[var(--faint)]">نصب و اجرا:</span>
+      <code class="mono text-[11.5px] px-3.5 py-2 rounded-lg border border-[var(--line)] bg-[rgba(255,255,255,.03)] text-[var(--muted)]" dir="ltr">pip install httpx pandas pyarrow rich</code>
+      <i data-lucide="arrow-left" class="text-[var(--faint)]" style="width:14px;height:14px"></i>
+      <code class="mono text-[11.5px] px-3.5 py-2 rounded-lg border border-[rgba(22,224,140,.3)] bg-[rgba(22,224,140,.06)] text-[var(--green)]" dir="ltr">python main.py --loop</code>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ خروجی ══════════ -->
+<section id="output" class="relative z-10 py-24 lg:py-32">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="reveal text-center max-w-2xl mx-auto">
+      <span class="eyebrow"><i data-lucide="square-terminal" style="width:13px;height:13px"></i> خروجی تحویلی</span>
+      <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">ترمینال <span class="mono grad-text" dir="ltr">rich</span> و فایل <span class="mono grad-text" dir="ltr">signals.json</span></h2>
+      <p class="text-[var(--muted)] mt-4 text-[14.5px]">پیش‌نمایش واقعی خروجی اجرای راس ساعت ۱۲:۲۵ — جدول رنگی کنسول و رتبه‌بندی ساخت‌یافته.</p>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-6 mt-12 items-start">
+      <div class="term reveal">
+        <div class="flex items-center gap-3 px-5 py-3 border-b border-[var(--line)] bg-[rgba(255,255,255,.02)]">
+          <span class="flex gap-1.5">
+            <i class="w-3 h-3 rounded-full" style="background:#ff5f57"></i>
+            <i class="w-3 h-3 rounded-full" style="background:#febc2e"></i>
+            <i class="w-3 h-3 rounded-full" style="background:#28c840"></i>
+          </span>
+          <span class="mono text-[11.5px] text-[var(--faint)]">quant@tsetmc: python main.py --once</span>
+        </div>
+        <div class="termbody" id="term-body"></div>
+      </div>
+
+      <div class="term reveal" style="transition-delay:.1s">
+        <div class="flex items-center gap-3 px-5 py-3 border-b border-[var(--line)] bg-[rgba(255,255,255,.02)]">
+          <i data-lucide="file-json" class="text-[var(--green)]" style="width:14px;height:14px"></i>
+          <span class="mono text-[11.5px] text-[var(--faint)]">signals.json — UTF-8 · 10 records</span>
+        </div>
+        <div class="jsonbody" id="json-body"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ فوتر ══════════ -->
+<footer class="relative z-10 border-t border-[var(--line)] py-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+    <div class="flex items-center gap-3">
+      <span class="grid place-items-center w-9 h-9 rounded-xl border border-[rgba(22,224,140,.35)] bg-[rgba(22,224,140,.08)]">
+        <i data-lucide="radar" class="text-[var(--green)]" style="width:17px;height:17px"></i></span>
+      <div>
+        <b class="text-[15px]">تابلو<span class="grad-text">رادار</span></b>
+        <p class="text-[11.5px] text-[var(--faint)] mt-0.5">مهندسی کمی برای تالار بورس تهران</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap justify-center text-[11px] mono text-[var(--faint)]" dir="ltr">
+      <span class="border border-[var(--line)] rounded-md px-2 py-1">python 3.10+</span>
+      <span class="border border-[var(--line)] rounded-md px-2 py-1">httpx</span>
+      <span class="border border-[var(--line)] rounded-md px-2 py-1">pandas</span>
+      <span class="border border-[var(--line)] rounded-md px-2 py-1">pyarrow</span>
+      <span class="border border-[var(--line)] rounded-md px-2 py-1">rich</span>
+    </div>
+    <p class="text-[11.5px] text-[var(--faint)] max-w-sm text-center md:text-left leading-5">
+      این سامانه صرفاً ابزار تحلیل داده است و توصیه سرمایه‌گذاری محسوب نمی‌شود. مسئولیت تصمیمات معاملاتی بر عهده کاربر است.
+    </p>
+  </div>
+</footer>
+
+<!-- ════ سورس ماژول‌های پایتون (غیراجرایی) ════ -->
+<script type="text/x-python" id="py-config">"""config.py — ثوابت و پیکربندی سراسری سامانه سیگنال‌دهی تابلوخوانی."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+
+# ── اندپوینت‌های رسمی CDN بورس اوراق بهادار تهران ─────────────────
+CDN_BASE = "https://cdn.tsetmc.com/api"
+
+MARKET_WATCH_URL: str = (
+    f"{CDN_BASE}/ClosingPrice/GetMarketWatch"
+    "?market=0"
+    "&paperTypes[0]=1&paperTypes[1]=2&paperTypes[2]=3&paperTypes[3]=4"
+    "&paperTypes[4]=5&paperTypes[5]=6&paperTypes[6]=7&paperTypes[7]=8"
+    "&paperTypes[8]=9&withBestLimits=false&hEven=0&RefID=0"
+)
+CLIENT_TYPE_URL: str = f"{CDN_BASE}/ClientType/GetClientTypeAll"
+INSTRUMENT_HISTORY_URL: str = (
+    CDN_BASE + "/ClosingPrice/GetClosingPriceInfoHistory/{ins_code}"
+)
+
+# ── سرآیند مرورگر جهت عبور از مکانیزم‌های مسدودسازی ───────────────
+BROWSER_HEADERS: dict[str, str] = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "fa-IR,fa;q=0.9,en;q=0.8",
+    "Referer": "https://www.tsetmc.com/",
+    "Origin": "https://www.tsetmc.com",
+}
+
+# ── تنظیمات شبکه و تحمل خطا ──────────────────────────────────────
+REQUEST_TIMEOUT: float = 10.0          # ثانیه
+MAX_RETRIES: int = 4                   # حداکثر تلاش مجدد
+BACKOFF_BASE: float = 1.0              # تأخیر اولیه (ثانیه)
+BACKOFF_FACTOR: float = 1.8            # رشد نمایی تأخیر
+
+# ── کش محلی تاریخچه قیمت ─────────────────────────────────────────
+CACHE_DIR: Path = Path("cache/history")
+HISTORY_CANDLES: int = 220             # ≥ 200 کندل برای SMA بلندمدت
+
+# ── مدل چندعاملی امتیازدهی ────────────────────────────────────────
+@dataclass(frozen=True, slots=True)
+class FactorWeights:
+    tablokhani: float = 0.35   # تابلوخوانی و پول هوشمند
+    short_term: float = 0.25   # سیگنال کوتاه‌مدت
+    mid_term:   float = 0.25   # سیگنال میان‌مدت
+    long_term:  float = 0.15   # سیگنال بلندمدت
+
+    def as_tuple(self) -> tuple[float, float, float, float]:
+        return (self.tablokhani, self.short_term, self.mid_term, self.long_term)
+
+WEIGHTS = FactorWeights()
+TOP_N: int = 10                        # تعداد نمادهای خروجی
+
+# ── آستانه‌های فیلتر وتوکننده ────────────────────────────────────
+@dataclass(frozen=True, slots=True)
+class VetoThresholds:
+    min_trade_value_rial: int = 50_000_000_000   # ریسک نقدشوندگی
+    min_score_to_signal: float = 60.0            # کف اعتبار سیگنال
+    max_loss_pct: float = 0.06                   # سقف حد ضرر ۶٪
+
+VETO = VetoThresholds()
+
+# ساعت مرجع تحلیل بازار (پایان تابلو، کمی پیش از بسته شدن)
+SIGNAL_TIME: str = "12:25"
+</script>
+
+<script type="text/x-python" id="py-provider">"""data_provider.py — کلاینت شبکه و لایه دسترسی به داده‌های TSETMC."""
+from __future__ import annotations
+
+import logging
+import time
+from datetime import datetime, timedelta
+
+import httpx
+import pandas as pd
+
+from config import (BACKOFF_BASE, BACKOFF_FACTOR, BROWSER_HEADERS, CACHE_DIR,
+                    CLIENT_TYPE_URL, HISTORY_CANDLES, INSTRUMENT_HISTORY_URL,
+                    MARKET_WATCH_URL, MAX_RETRIES, REQUEST_TIMEOUT)
+
+log = logging.getLogger("tsetmc.provider")
+
+
+class NetworkError(RuntimeError):
+    """وقوع خطای بازیابی‌ناشدنی در واکشی شبکه."""
+
+
+class TsetmcClient:
+    """کلاینت هم‌گام سبک برای CDN بورس با Retry و Backoff نمایی."""
+
+    def __init__(self) -> None:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        self._http = httpx.Client(
+            headers=BROWSER_HEADERS,
+            timeout=httpx.Timeout(REQUEST_TIMEOUT),
+            follow_redirects=True,
+            http2=False,
+        )
+
+    # ── هسته واکشی با تلاش مجدد ───────────────────────────────
+    def _get_json(self, url: str) -> dict:
+        delay = BACKOFF_BASE
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                resp = self._http.get(url)
+                resp.raise_for_status()
+                return resp.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                log.warning("تلاش %d/%d ناموفق: %s", attempt, MAX_RETRIES, exc)
+                if attempt == MAX_RETRIES:
+                    raise NetworkError(f"واکشی ناموفق بعد از {MAX_RETRIES} بار: {url}") from exc
+                time.sleep(delay)
+                delay *= BACKOFF_FACTOR
+        raise NetworkError("unreachable")
+
+    # ── دیده‌بان بازار (قیمت‌ها) ───────────────────────────────
+    def get_market_watch(self) -> pd.DataFrame:
+        payload = self._get_json(MARKET_WATCH_URL)
+        df = pd.DataFrame(payload["marketwatch"])
+        df["insCode"] = df["insCode"].astype(str)
+        return df.set_index("insCode")
+
+    # ── جریان نقدینگی حقیقی–حقوقی ──────────────────────────────
+    def get_client_type_all(self) -> pd.DataFrame:
+        payload = self._get_json(CLIENT_TYPE_URL)
+        df = pd.DataFrame(payload["clientType"])
+        df["insCode"] = df["insCode"].astype(str)
+        return df.set_index("insCode")
+
+    # ── ادغام داخلی دو جریان روی کلید insCode ──────────────────
+    def get_enriched_snapshot(self) -> pd.DataFrame:
+        """Inner Join دیده‌بان × حقیقی–حقوقی روی insCode."""
+        watch = self.get_market_watch()
+        flows = self.get_client_type_all()
+        snap = watch.join(flows, how="inner")
+        log.info("snapshot: %d نماد مشترک دریافت شد", len(snap))
+        return snap.reset_index()
+
+    # ── تاریخچه تعدیل‌شده با کش پارکت ──────────────────────────
+    def get_price_history(self, ins_code: str) -> pd.DataFrame:
+        cache = CACHE_DIR / f"{ins_code}.parquet"
+        if cache.exists():
+            age = datetime.now() - datetime.fromtimestamp(cache.stat().st_mtime)
+            if age < timedelta(hours=16):        # کش تازه
+                return pd.read_parquet(cache)
+
+        url = INSTRUMENT_HISTORY_URL.format(ins_code=ins_code)
+        rows = self._get_json(url)["closingPriceInfo"][-HISTORY_CANDLES:]
+        df = pd.DataFrame(rows).rename(
+            columns={"priceMN": "close", "qTotTran5J": "volume",
+                     "dEven": "date", "priceYesterday": "prev_close"}
+        )
+        df = df[["date", "close", "volume", "prev_close"]].astype(float)
+        df.to_parquet(cache, engine="pyarrow", compression="zstd")
+        return df
+</script>
+
+<script type="text/x-python" id="py-tablo">"""tablokhani.py — موتور برداری تحلیل تابلو و جریان پول هوشمند."""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+
+class TablokhaniEngine:
+    """محاسبات تابلوخوانی — کاملاً برداری، بدون حلقه روی نمادها."""
+
+    ROUND = 10  # ریال → میلیون تومان در گزارش‌دهی
+
+    @staticmethod
+    def _safe_div(num: pd.Series, den: pd.Series) -> pd.Series:
+        return num / den.replace(0, np.nan)
+
+    def sarane(self, df: pd.DataFrame) -> pd.DataFrame:
+        """سرانه خرید/فروش حقیقی = (حجم × قیمت پایانی) / تعداد معامله‌گر."""
+        df["sarane_buy"] = self._safe_div(
+            df["Buy_I_Volume"] * df["pc"], df["Buy_CountI"]) / 1e6
+        df["sarane_sell"] = self._safe_div(
+            df["Sell_I_Volume"] * df["pc"], df["Sell_CountI"]) / 1e6
+        return df
+
+    def power_ratio(self, df: pd.DataFrame) -> pd.DataFrame:
+        """نسبت قدرت خریدار به فروشنده."""
+        df["power_ratio"] = self._safe_div(df["sarane_buy"], df["sarane_sell"])
+        return df
+
+    def volume_shock(self, df: pd.DataFrame,
+                     ma30_vol: pd.Series) -> pd.DataFrame:
+        """ضریب حجم مشکوک = حجم امروز / میانگین متحرک ۳۰ روزه."""
+        df["volume_shock"] = self._safe_div(
+            df["tVol"], ma30_vol.reindex(df.index))
+        return df
+
+    def last_hour_tick(self, df: pd.DataFrame) -> pd.DataFrame:
+        """درصد الگوی ساعت (تیک صعودی) = فاصله آخرین معامله از قیمت پایانی."""
+        df["tick_pct"] = (df["pl"] - df["pc"]) / df["pc"] * 100.0
+        return df
+
+    def order_book_imbalance(self, df: pd.DataFrame) -> pd.DataFrame:
+        """عدم تعادل مظنه‌ها در سطوح صف خرید/فروش: (-1 … +1)."""
+        demand = df[["qd1", "qd2", "qd3"]].fillna(0).sum(axis=1)
+        supply = df[["qo1", "qo2", "qo3"]].fillna(0).sum(axis=1)
+        df["obi"] = (demand - supply) / (demand + supply).replace(0, np.nan)
+        return df
+
+    def compute(self, snap: pd.DataFrame,
+                ma30_vol: pd.Series) -> pd.DataFrame:
+        df = snap.set_index("insCode").copy()
+        return (df.pipe(self.sarane)
+                  .pipe(self.power_ratio)
+                  .pipe(self.volume_shock, ma30_vol=ma30_vol)
+                  .pipe(self.last_hour_tick)
+                  .pipe(self.order_book_imbalance)
+                  .fillna({"power_ratio": 0, "volume_shock": 0, "obi": 0}))
+</script>
+
+<script type="text/x-python" id="py-tech">"""technical.py — موتور تحلیل تکنیکال چندبازه (کوتاه/میان/بلندمدت)."""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+
+class TechnicalEngine:
+
+    # ── اندیکاتورهای پایه (برداری) ────────────────────────────
+    @staticmethod
+    def rsi(close: pd.Series, period: int = 14) -> pd.Series:
+        delta = close.diff()
+        gain = delta.clip(lower=0).ewm(alpha=1 / period, adjust=False).mean()
+        loss = (-delta.clip(upper=0)).ewm(alpha=1 / period, adjust=False).mean()
+        rs = gain / loss.replace(0, np.nan)
+        return 100 - (100 / (1 + rs))
+
+    @staticmethod
+    def macd_hist(close: pd.Series) -> pd.Series:
+        macd = close.ewm(span=12, adjust=False).mean() - close.ewm(span=26, adjust=False).mean()
+        return macd - macd.ewm(span=9, adjust=False).mean()
+
+    # ── زیرامتیاز هر تایم‌فریم (۰..۱۰۰) ─────────────────────────
+    def short_term(self, hist: pd.DataFrame) -> float:
+        c = hist["close"]
+        rsi14 = self.rsi(c).iloc[-1]
+        ema9, ema21 = c.ewm(span=9).mean().iloc[-1], c.ewm(span=21).mean().iloc[-1]
+        score = 0.0
+        score += 55 if (rsi14 >= 45 or rsi14 > self.rsi(c).iloc[-2]) else 0   # خروج از اشباع فروش / قدرت نسبی
+        score += 45 if ema9 > ema21 else 45 * max(ema9 / ema21 - 1 + 1, 0) / 2
+        return min(score, 100.0)
+
+    def mid_term(self, hist: pd.DataFrame) -> float:
+        c = hist["close"]
+        sma20, sma50 = c.rolling(20).mean().iloc[-1], c.rolling(50).mean().iloc[-1]
+        mid_band = c.rolling(20).mean().iloc[-1]
+        macd_h = self.macd_hist(c)
+        score = 0.0
+        score += 40 if sma20 > sma50 else 0
+        score += 30 if macd_h.iloc[-1] > 0 else 30 * (macd_h.iloc[-1] > macd_h.iloc[-5])
+        score += 30 if c.iloc[-1] > mid_band else 0
+        return min(score, 100.0)
+
+    def long_term(self, hist: pd.DataFrame) -> float:
+        c = hist["close"]
+        sma200 = c.rolling(200).mean()
+        if np.isnan(sma200.iloc[-1]):
+            return 40.0 if c.iloc[-1] > c.mean() else 15.0
+        slope = (sma200.iloc[-1] - sma200.iloc[-20]) / sma200.iloc[-20]
+        score = 60 if c.iloc[-1] > sma200.iloc[-1] else 15
+        return min(score + (40 if slope > 0 else 0), 100.0)
+
+    def evaluate(self, hist: pd.DataFrame) -> dict[str, float]:
+        return {"short": self.short_term(hist),
+                "mid": self.mid_term(hist),
+                "long": self.long_term(hist)}
+</script>
+
+<script type="text/x-python" id="py-scoring">"""scoring_engine.py — امتیازدهی جامع ۰..۱۰۰ + فیلترهای وتو + Top-10."""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+
+from config import TOP_N, VETO, WEIGHTS
+
+
+class ScoringEngine:
+
+    # ── نگاشت نرم پیوسته به زیرامتیاز (۰..۱۰۰) ──────────────────
+    @staticmethod
+    def _sigmoid(x: pd.Series, mid: float, k: float) -> pd.Series:
+        return 100.0 / (1.0 + np.exp(-k * (x - mid)))
+
+    def tablo_score(self, df: pd.DataFrame) -> pd.Series:
+        return (
+            0.40 * self._sigmoid(df["power_ratio"], mid=1.15, k=8)      # قدرت خریدار
+            + 0.30 * self._sigmoid(df["volume_shock"], mid=1.6, k=1.6)   # حجم مشکوک
+            + 0.20 * self._sigmoid(df["obi"], mid=0.10, k=10)            # عدم تعادل صف
+            + 0.10 * self._sigmoid(df["tick_pct"], mid=0.0, k=200)       # تیک صعودی
+        ).clip(0, 100)
+
+    # ── ماسک فیلترهای وتوکننده (حذف قطعی) ───────────────────────
+    @staticmethod
+    def veto_mask(df: pd.DataFrame) -> pd.Series:
+        liquid = df["qTotTran5J"] >= VETO.min_trade_value_rial   # ارزش معاملات ≥ ۵۰ میلیارد ریال
+        valid_vol = df["tVol"] >= df["baseVol"]                   # حجم بالاتر از حجم مبنا
+        not_sell_queue = ~((df["pl"] == df["pmin"]) & (df["qd1"] <= 0))  # صف فروش قفل
+        return liquid & valid_vol & not_sell_queue
+
+    @staticmethod
+    def stop_loss(row: pd.Series) -> float:
+        """حد ضرر محاسباتی: کف بازه روز یا سقف ۶٪ افت از آخرین قیمت."""
+        floor = row["pmin"] if row["pmin"] > 0 else row["pl"] * (1 - VETO.max_loss_pct)
+        return max(floor, row["pl"] * (1 - VETO.max_loss_pct))
+
+    def rank(self, feat: pd.DataFrame, tech: pd.DataFrame) -> pd.DataFrame:
+        df = feat.join(tech, how="left").fillna(
+            {"score_short": 0, "score_mid": 0, "score_long": 0})
+
+        passed = df[self.veto_mask(df)].copy()
+        passed["score_total"] = (
+            WEIGHTS.tablokhani * self.tablo_score(passed)
+            + WEIGHTS.short_term * passed["score_short"]
+            + WEIGHTS.mid_term * passed["score_mid"]
+            + WEIGHTS.long_term * passed["score_long"]
+        ).round(2)
+
+        passed["stop_loss"] = passed.apply(self.stop_loss, axis=1).round(0)
+        passed["horizon"] = np.select(
+            [passed["score_short"] >= 70, passed["score_long"] >= 70],
+            ["کوتاه‌مدت", "بلندمدت"], default="میان‌مدت")
+
+        top = passed.nlargest(TOP_N, "score_total")
+        return top[top["score_total"] >= VETO.min_score_to_signal]
+</script>
+
+<script type="text/x-python" id="py-cli">"""cli_dashboard.py — رندر جدول رنگی کنسول و ذخیره خروجی JSON."""
+from __future__ import annotations
+
+import json
+from datetime import datetime
+
+import pandas as pd
+from rich.console import Console
+from rich.table import Table
+from rich import box
+
+console = console = Console()
+
+
+class CliDashboard:
+
+    COLUMNS = ("نماد", "آخرین معامله", "تغییر٪", "سرانه خرید",
+               "قدرت", "حجم مشکوک", "ک/م/ب", "امتیاز", "افق", "حد ضرر")
+
+    def render(self, top: pd.DataFrame) -> None:
+        table = Table(title="۱۰ سیگنال برتر — تابلورادار", box=box.ROUNDED,
+                      header_style="bold cyan", row_styles=("", "on grey7"))
+        for col in self.COLUMNS:
+            table.add_column(col, justify="center")
+
+        for _, r in top.iterrows():
+            chg = (r["pl"] - r["pc"]) / r["pc"] * 100
+            tech = "".join(("🟢" if s >= 60 else "⚪") for s in
+                           (r["score_short"], r["score_mid"], r["score_long"]))
+            style = "bold green" if chg > 0 else "bold red"
+            table.add_row(
+                r["lSymbol"], f"{r['pl']:,.0f}",
+                f"[{style}]{chg:+.2f}%[/]",
+                f"{r['sarane_buy']:,.0f}",
+                f"{r['power_ratio']:.2f}", f"{r['volume_shock']:.1f}x",
+                tech, f"[bold gold1]{r['score_total']:.1f}[/]",
+                r["horizon"], f"{r['stop_loss']:,.0f}",
+            )
+        console.print(table)
+
+    def save_json(self, top: pd.DataFrame, path: str = "signals.json") -> None:
+        payload = {
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "signal_time": "12:25",
+            "count": len(top),
+            "signals": top.reset_index().to_dict(orient="records"),
+        }
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=2, default=str)
+        console.log(f"[green]ذخیره شد ← {path}")
+</script>
+
+<script type="text/x-python" id="py-main">"""main.py — ارکستراتور پایپ‌لاین: دریافت → پردازش → فیلتر → رتبه‌بندی."""
+from __future__ import annotations
+
+import argparse
+import logging
+import time
+from datetime import datetime
+
+import pandas as pd
+
+from cli_dashboard import CliDashboard
+from config import SIGNAL_TIME
+from data_provider import NetworkError, TsetmcClient
+from scoring_engine import ScoringEngine
+from tablokhani import TablokhaniEngine
+from technical import TechnicalEngine
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s | %(levelname)-7s | %(message)s")
+log = logging.getLogger("tablo-radar")
+
+
+def run_once(client: TsetmcClient) -> None:
+    t0 = time.perf_counter()
+
+    # ۱) اسنپ‌شات هم‌زمان بازار + جریان نقدینگی
+    snap = client.get_enriched_snapshot()
+
+    # ۲) واکشی کش‌دار تاریخچه و استخراج میانگین حجم ۳۰ روزه
+    hist = {c: client.get_price_history(c) for c in snap["insCode"]}
+    ma30_vol = pd.Series(
+        {c: h["volume"].tail(30).mean() for c, h in hist.items()})
+
+    # ۳) موتور تابلوخوانی (برداری روی کل بازار)
+    tablo = TablokhaniEngine().compute(snap, ma30_vol)
+
+    # ۴) موتور تکنیکال چندبازه
+    tech = TechnicalEngine()
+    tech_scores = pd.DataFrame.from_dict(
+        {c: dict(zip(("short", "mid", "long"),
+                     map(v.get, ("short", "mid", "long"))))
+         for c, v in {c: tech.evaluate(h) for c, h in hist.items()}.items()},
+        orient="index").rename(columns=lambda s: f"score_{s}")
+
+    # ۵) امتیازدهی + وتو + استخراج Top-10
+    top = ScoringEngine().rank(tablo, tech_scores)
+
+    # ۶) رندر و ذخیره خروجی
+    dash = CliDashboard()
+    dash.render(top)
+    dash.save_json(top)
+    log.info("پایپ‌لاین کامل در %.3f ثانیه", time.perf_counter() - t0)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="تابلورادار — اسکنر سیگنال بورس تهران")
+    parser.add_argument("--once", action="store_true", help="اجرای تک‌نوبته")
+    parser.add_argument("--loop", action="store_true",
+                        help=f"زمان‌بندی روزانه راس ساعت {SIGNAL_TIME}")
+    args = parser.parse_args()
+    client = TsetmcClient()
+
+    if args.loop:
+        log.info("زمان‌بند فعال؛ منتظر ساعت %s ...", SIGNAL_TIME)
+        while True:
+            now = datetime.now().strftime("%H:%M")
+            if now == SIGNAL_TIME:
+                try:
+                    run_once(client)
+                except NetworkError as exc:
+                    log.error("اجرای این نوبت لغو شد: %s", exc)
+                time.sleep(61)  # جلوگیری از تکرار در همان دقیقه
+            time.sleep(5)
+    else:
+        run_once(client)
+
+
+if __name__ == "__main__":
+    main()
+</script>
+
+
+<script>
+/* ═══════════════ داده نمایشی بازار ═══════════════ */
+const STOCKS = [
+  {sym:'خساپا', name:'گروه سایپا',        price:'356.8', chg:'+4.13', chgF: 4.13, sarane:'1,842', power:1.68, shock:3.4, tech:[1,1,0],  score:92.0, f:{t:33,s:24,m:21,l:14}, hz:'short', stop:'338', rsi:'58.2 · خروج از اشباع فروش', macd:'هیستوگرام مثبت (۲ روز)', sma200:'قیمت ۸٪ بالای SMA200', seed:11},
+  {sym:'وبملت', name:'بانک ملت',          price:'738.2', chg:'+3.02', chgF: 3.02, sarane:'2,310', power:1.52, shock:2.8, tech:[1,1,1],  score:89.0, f:{t:31,s:21,m:23,l:14}, hz:'mid',   stop:'699', rsi:'62.4 · قدرت نسبی بالا',   macd:'کراس طلایی تازه',       sma200:'روند صعودی پایدار',  seed:29},
+  {sym:'خودرو', name:'ایران‌خودرو',        price:'328.4', chg:'+2.61', chgF: 2.61, sarane:'1,544', power:1.47, shock:2.5, tech:[1,1,0],  score:87.0, f:{t:31,s:23,m:19,l:14}, hz:'short', stop:'312', rsi:'55.7 · قدرت نسبی بالا',   macd:'همگرایی مثبت',          sma200:'نزدیک به SMA200',    seed:47},
+  {sym:'فولاد', name:'فولاد مبارکه',       price:'2,845', chg:'+1.84', chgF: 1.84, sarane:'3,120', power:1.38, shock:2.1, tech:[0,1,1],  score:85.0, f:{t:29,s:20,m:22,l:14}, hz:'long',  stop:'2,702', rsi:'63.1 · بدون اشباع',    macd:'هیستوگرام رو به رشد',   sma200:'سقف کانال بلندمدت',  seed:71},
+  {sym:'شستا',  name:'تأمین اجتماعی',      price:'592.5', chg:'+1.56', chgF: 1.56, sarane:'1,098', power:1.33, shock:1.9, tech:[1,1,0],  score:82.0, f:{t:29,s:19,m:21,l:13}, hz:'mid',   stop:'562', rsi:'57.9 · خروج از اشباع فروش', macd:'هیستوگرام مثبت',        sma200:'تثبیت بالای SMA200', seed:3},
+  {sym:'شپنا',  name:'پالایش اصفهان',      price:'5,420', chg:'+2.27', chgF: 2.27, sarane:'1,760', power:1.41, shock:2.3, tech:[1,1,0],  score:80.0, f:{t:28,s:19,m:20,l:13}, hz:'mid',   stop:'5,148', rsi:'59.3 · قدرت نسبی',     macd:'کراس صعودی سیگنال',     sma200:'شیب مثبت دویست‌روزه', seed:19},
+  {sym:'کگل',   name:'گل‌گهر',             price:'8,940', chg:'+1.12', chgF: 1.12, sarane:'2,240', power:1.26, shock:1.7, tech:[0,1,1],  score:78.0, f:{t:26,s:18,m:20,l:14}, hz:'long',  stop:'8,492', rsi:'61.0 · بدون اشباع',    macd:'هیستوگرام مثبت پیوسته', sma200:'فاصله ۱۴٪ بالای SMA200', seed:37},
+  {sym:'فارس',  name:'پتروشیمی فارس',      price:'4,312', chg:'+0.94', chgF: 0.94, sarane:'1,185', power:1.24, shock:1.6, tech:[0,1,1],  score:75.0, f:{t:25,s:16,m:20,l:14}, hz:'long',  stop:'4,096', rsi:'58.8 · خنثی مثبت',     macd:'همگرایی در نقطه صفر',   sma200:'روند صعودی بلندمدت', seed:53},
+  {sym:'حکشتی', name:'کشتیرانی ج.اسلامی',  price:'6,780', chg:'+1.35', chgF: 1.35, sarane:'964',   power:1.30, shock:1.8, tech:[1,1,0],  score:73.0, f:{t:25,s:17,m:19,l:12}, hz:'mid',   stop:'6,441', rsi:'54.6 · خروج از اشباع فروش', macd:'هیستوگرام مثبت',        sma200:'نزدیک به کراس طلایی', seed:83},
+  {sym:'وتجارت',name:'بانک تجارت',         price:'1,286', chg:'+0.78', chgF: 0.78, sarane:'875',   power:1.18, shock:1.5, tech:[1,0,0],  score:71.0, f:{t:23,s:16,m:19,l:13}, hz:'mid',   stop:'1,224', rsi:'52.1 · خنثی',           macd:'واکنش اولیه مثبت',      sma200:'زیر SMA200 (احتیاط)', seed:97},
+];
+const EXTRA_TICKS = [
+  {sym:'غدیر',price:'412.4',chg:'-1.12'},{sym:'اخابر',price:'1,204',chg:'+1.20'},
+  {sym:'شبندر',price:'2,118',chg:'+2.44'},{sym:'وغدیر',price:'886.3',chg:'-0.66'},
+  {sym:'غگیلا',price:'3,402',chg:'+0.88'},{sym:'رمپنا',price:'4,740',chg:'-2.31'},
+  {sym:'تاپیکو',price:'1,502',chg:'+0.21'},{sym:'ولملت',price:'622.1',chg:'+1.05'},
+  {sym:'خبهمن',price:'214.7',chg:'+4.98'},{sym:'پارسان',price:'1,218',chg:'+0.46'},
+  {sym:'فملی',price:'902.4',chg:'+0.97'},{sym:'غمارگ',price:'348.9',chg:'-3.02'},
+];
+const HZ = {
+  short:{fa:'کوتاه‌مدت', cls:'h-short', icon:'zap'},
+  mid:  {fa:'میان‌مدت',  cls:'h-mid',   icon:'activity'},
+  long: {fa:'بلندمدت',   cls:'h-long',  icon:'layers'},
+};
+const FACTORS = [
+  {key:'t', fa:'تابلوخوانی و پول هوشمند', max:35, color:'var(--green)',  grad:'linear-gradient(90deg,#0aa96b,#16e08c)'},
+  {key:'s', fa:'تکنیکال کوتاه‌مدت',        max:25, color:'var(--cyan)',   grad:'linear-gradient(90deg,#1b8fc4,#4cc9ff)'},
+  {key:'m', fa:'تکنیکال میان‌مدت',         max:25, color:'var(--violet)', grad:'linear-gradient(90deg,#6a5bd0,#9b8cff)'},
+  {key:'l', fa:'تکنیکال بلندمدت',          max:15, color:'var(--amber)',  grad:'linear-gradient(90deg,#c98a1b,#ffc14d)'},
+];
+const CODE_FILES = [
+  {id:'py-config',  name:'config.py'},
+  {id:'py-provider',name:'data_provider.py'},
+  {id:'py-tablo',   name:'tablokhani.py'},
+  {id:'py-tech',    name:'technical.py'},
+  {id:'py-scoring', name:'scoring_engine.py'},
+  {id:'py-cli',     name:'cli_dashboard.py'},
+  {id:'py-main',    name:'main.py'},
+];
+
+/* ═══════════════ ابزارها ═══════════════ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function scoreCls(v){ return v>=85 ? 'score-a' : 'score-b'; }
+function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
+
+/* ═══════════════ نوار تیکر ═══════════════ */
+(function buildTicker(){
+  const items=[...STOCKS,...EXTRA_TICKS];
+  const html = items.map(s=>{
+    const up = !s.chg.startsWith('-');
+    return `<span class="tick-item">
+      <b class="text-[13px]">${s.sym}</b>
+      <span class="mono text-[12px] text-[var(--muted)]" dir="ltr">${s.price}</span>
+      <span class="mono text-[11.5px] ${up?'badge-up':'badge-down'}" dir="ltr">${s.chg}%</span>
+    </span>`;
+  }).join('');
+  $('#ticker-track').innerHTML = html + html; // دوتایی برای لوپ بی‌درز
+})();
+
+/* ═══════════════ جدول سیگنال‌ها ═══════════════ */
+function techDots(arr){
+  return arr.map(v=>`<span class="tdot ${v===1?'bull':(v===-1?'bear':'')}"></span>`).join('<span class="inline-block w-1.5"></span>');
+}
+(function buildTable(){
+  $('#signal-rows').innerHTML = STOCKS.map((s,i)=>{
+    const h = HZ[s.hz];
+    const pwrW = Math.min(s.power/2.4,1)*100;
+    return `<tr data-i="${i}" class="${i===0?'active':''}">
+      <td><span class="rank ${i<3?'top':''}">${i+1}</span></td>
+      <td><div class="flex flex-col"><b class="text-[14px]">${s.sym}</b><span class="text-[10.5px] text-[var(--faint)]">${s.name}</span></div></td>
+      <td class="mono" dir="ltr">${s.price}</td>
+      <td class="mono ${s.chgF>0?'badge-up':'badge-down'}" dir="ltr">${s.chg}%</td>
+      <td class="mono" dir="ltr">${s.sarane}</td>
+      <td><div class="flex items-center gap-2">
+          <span class="mono text-[12.5px] ${s.power>=1.3?'text-[var(--green)]':'text-[var(--ink)]'}" dir="ltr">${s.power.toFixed(2)}</span>
+          <span class="pwr-wrap"><span class="pwr-fill" style="width:${pwrW}%"></span></span></div></td>
+      <td class="mono ${s.shock>=2?'text-[var(--green)]':''}" dir="ltr">×${s.shock.toFixed(1)}</td>
+      <td class="hidden md:table-cell"><canvas class="spark block" width="108" height="30" style="width:108px;height:30px" data-seed="${s.seed}"></canvas></td>
+      <td><span class="flex items-center">${techDots(s.tech)}</span></td>
+      <td><span class="score-badge ${scoreCls(s.score)}" dir="ltr">${s.score.toFixed(1)}</span></td>
+      <td><div class="flex flex-col gap-1.5">
+          <span class="hchip ${h.cls}"><i data-lucide="${h.icon}" style="width:11px;height:11px"></i>${h.fa}</span>
+          <span class="mono text-[10px] text-[var(--faint)]" dir="ltr">SL ${s.stop}</span></div></td>
+    </tr>`;
+  }).join('');
+
+  $('#signal-rows').addEventListener('click', e=>{
+    const tr = e.target.closest('tr[data-i]'); if(!tr) return;
+    document.querySelectorAll('#signal-rows tr').forEach(r=>r.classList.remove('active'));
+    tr.classList.add('active');
+    updatePanel(+tr.dataset.i);
+  });
+})();
+
+/* ═══════════════ اسپارک‌لاین ═══════════════ */
+(function drawSparks(){
+  document.querySelectorAll('.spark').forEach(cv=>{
+    const ctx = cv.getContext('2d'), rnd = mulberry32(+cv.dataset.seed);
+    const W=cv.width,H=cv.height,n=28; let v=0.25+rnd()*0.2; const pts=[];
+    for(let i=0;i<n;i++){ v+= (rnd()-0.42)*0.09; v=Math.max(0.05,Math.min(0.95,v)); pts.push(v); }
+    ctx.clearRect(0,0,W,H);
+    const x=i=>i*(W-6)/(n-1)+3, y=p=>H-4-p*(H-9);
+    const grd = ctx.createLinearGradient(0,0,0,H);
+    grd.addColorStop(0,'rgba(22,224,140,.35)'); grd.addColorStop(1,'rgba(22,224,140,0)');
+    ctx.beginPath(); ctx.moveTo(x(0),y(pts[0]));
+    pts.forEach((p,i)=>ctx.lineTo(x(i),y(p)));
+    ctx.lineTo(x(n-1),H); ctx.lineTo(x(0),H); ctx.closePath(); ctx.fillStyle=grd; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x(0),y(pts[0]));
+    pts.forEach((p,i)=>ctx.lineTo(x(i),y(p)));
+    ctx.strokeStyle='#16e08c'; ctx.lineWidth=1.6; ctx.lineJoin='round'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x(n-1),y(pts[n-1]),2.4,0,7); ctx.fillStyle='#6cf2c0'; ctx.fill();
+  });
+})();
+
+/* ═══════════════ پنل جزئیات ═══════════════ */
+function updatePanel(i){
+  const s = STOCKS[i], h = HZ[s.hz];
+  const stopPct = ((parseFloat(s.stop.replace(',',''))-parseFloat(s.price.replace(',','')))/parseFloat(s.price.replace(',',''))*100).toFixed(1);
+  $('#detail-panel').innerHTML = `
+  <div class="glass p-6" style="border-radius:20px">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <div class="flex items-center gap-2.5">
+          <b class="text-[22px]">${s.sym}</b>
+          <span class="hchip ${h.cls}"><i data-lucide="${h.icon}" style="width:11px;height:11px"></i>${h.fa}</span>
+        </div>
+        <p class="text-[12px] text-[var(--faint)] mt-1">${s.name}</p>
+      </div>
+      <div class="text-center">
+        <div class="mono font-extrabold text-[30px] leading-none ${s.score>=85?'text-[var(--green)]':'text-[#9ee9c8]'}" dir="ltr">${s.score.toFixed(1)}</div>
+        <div class="text-[10.5px] text-[var(--faint)] mt-1.5">امتیاز جامع / ۱۰۰</div>
+      </div>
+    </div>
+
+    <div class="flex items-baseline gap-3 mt-4 pb-5 border-b border-[var(--line)]">
+      <span class="mono text-[20px] font-bold" dir="ltr">${s.price}</span>
+      <span class="text-[11px] text-[var(--faint)]">تومان</span>
+      <span class="mono text-[13px] ${s.chgF>0?'badge-up':'badge-down'}" dir="ltr">${s.chg}%</span>
+    </div>
+
+    <p class="text-[12px] font-bold mt-5 mb-3 flex items-center gap-2"><i data-lucide="chart-pie" class="text-[var(--green)]" style="width:13px;height:13px"></i>بازشکافی امتیاز</p>
+    <div class="space-y-3" id="fbars">
+      ${FACTORS.map(f=>`
+        <div>
+          <div class="flex justify-between text-[11.5px] mb-1.5">
+            <span style="color:${f.color}">${f.fa}</span>
+            <span class="mono text-[var(--muted)]" dir="ltr">${s.f[f.key]} / ${f.max}</span>
+          </div>
+          <div class="fbar"><div class="fill" data-w="${s.f[f.key]/f.max*100}" style="background:${f.grad}"></div></div>
+        </div>`).join('')}
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mt-5">
+      <div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">سرانه خرید حقیقی</p><p class="mono text-[15px] font-bold mt-1 text-[var(--green)]" dir="ltr">${s.sarane} <span class="text-[10px] text-[var(--faint)]">م.ت</span></p></div>
+      <div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">قدرت خریدار/فروشنده</p><p class="mono text-[15px] font-bold mt-1" dir="ltr">×${s.power.toFixed(2)}</p></div>
+      <div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">ضریب حجم مشکوک</p><p class="mono text-[15px] font-bold mt-1 ${s.shock>=2?'text-[var(--green)]':''}" dir="ltr">×${s.shock.toFixed(1)}</p></div>
+      <div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">حد ضرر محاسباتی</p><p class="mono text-[15px] font-bold mt-1 text-[var(--red)]" dir="ltr">${s.stop} <span class="text-[10px]">(${stopPct}%)</span></p></div>
+    </div>
+
+    <div class="mt-5 space-y-2.5 text-[12px]">
+      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="activity" style="width:12px;height:12px"></i>RSI(14)</span><span class="text-[var(--muted)] text-[11.5px]">${s.rsi}</span></div>
+      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="chart-column" style="width:12px;height:12px"></i>MACD</span><span class="text-[var(--muted)] text-[11.5px]">${s.macd}</span></div>
+      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="trending-up" style="width:13px;height:13px"></i>SMA200</span><span class="text-[var(--muted)] text-[11.5px]">${s.sma200}</span></div>
+    </div>
+
+    <div class="mt-5 rounded-xl border border-[rgba(22,224,140,.25)] bg-[rgba(22,224,140,.06)] px-4 py-3 text-[11.5px] leading-6 text-[#bfe9d4]">
+      <b class="text-[var(--green)]">قاعده ورود:</b> تثبیت قیمت بالای <span class="mono" dir="ltr">${s.price}</span> تومان در ساعت ۱۲:۲۵؛ خروج خودکار در شکست حد ضرر <span class="mono" dir="ltr">${s.stop}</span>.
+    </div>
+  </div>`;
+  refreshIcons();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    document.querySelectorAll('#fbars .fill').forEach(el=> el.style.width = el.dataset.w+'%');
+  }));
+}
+updatePanel(0);
+
+/* ═══════════════ بوم هیرو (کندل‌ها) ═══════════════ */
+(function heroCanvas(){
+  const cv = $('#hero-canvas'); if(!cv) return;
+  const ctx = cv.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W,H,dpr, candles=[], off=0, price=100;
+  const CW=9, GAP=7, STEP=CW+GAP;
+  function next(){
+    const o=price, drift=(Math.random()-0.44)*4.2;
+    const c=o+drift; price=c;
+    candles.push({o,c,h:Math.max(o,c)+Math.random()*2.6,l:Math.min(o,c)-Math.random()*2.6});
+  }
+  function resize(){
+    dpr=Math.min(devicePixelRatio||1,2);
+    W=cv.clientWidth; H=cv.clientHeight;
+    cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  resize();
+  for(let i=0;i<220;i++) next();
+  function drawAll(){
+    // پیاده‌سازی رسم
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='rgba(148,163,184,.05)'; ctx.lineWidth=1;
+    for(let gy=0;gy<H;gy+=64){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
+    let lo=Infinity,hi=-Infinity; candles.forEach(k=>{lo=Math.min(lo,k.l);hi=Math.max(hi,k.h);});
+    const pad=(hi-lo)*0.18+0.001; lo-=pad; hi+=pad;
+    const py=v=>H-((v-lo)/(hi-lo))*H;
+    candles.forEach((k,i)=>{
+      const x=i*STEP+off;
+      if(x<-STEP||x>W+STEP) return;
+      const up=k.c>=k.o;
+      ctx.strokeStyle=up?'rgba(22,224,140,.7)':'rgba(255,84,112,.62)';
+      ctx.fillStyle=up?'rgba(22,224,140,.5)':'rgba(255,84,112,.45)';
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x+CW/2,py(k.h)); ctx.lineTo(x+CW/2,py(k.l)); ctx.stroke();
+      const bh=Math.max(1.6,Math.abs(py(k.o)-py(k.c)));
+      ctx.fillRect(x,Math.min(py(k.o),py(k.c)),CW,bh);
+    });
+  }
+  function loop(){
+    drawAll();
+    off-=0.45;
+    if(off<=-STEP){ off+=STEP; candles.shift(); next(); }
+    while(candles.length*STEP+off < W+STEP*2) next();
+    requestAnimationFrame(loop);
+  }
+  addEventListener('resize', resize);
+  if(reduce){ drawAll(); } else { requestAnimationFrame(loop); }
+})();
+
+/* ═══════════════ ساعت تهران و وضعیت بازار ═══════════════ */
+(function clock(){
+  const tf=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tehran',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const wf=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Tehran',weekday:'short'});
+  function tick(){
+    const now=new Date();
+    $('#tehran-clock').textContent=tf.format(now);
+    const day=wf.format(now), hm=tf.format(now).slice(0,5);
+    const open=['Sat','Sun','Mon','Tue','Wed'].includes(day) && hm>='09:00' && hm<='12:30';
+    $('#mkt-status').textContent=open?'بازار باز':'بازار بسته';
+    $('#mkt-dot').style.background=open?'var(--green)':'var(--red)';
+  }
+  tick(); setInterval(tick,1000);
+})();
+
+/* ═══════════════ ناوبری، اسکرول، نمایان‌سازی ═══════════════ */
+(function scrollFx(){
+  const nav=$('#nav'), bar=$('#scrollbar');
+  addEventListener('scroll',()=>{
+    nav.classList.toggle('scrolled', scrollY>24);
+    const p=scrollY/(document.documentElement.scrollHeight-innerHeight);
+    bar.style.transform=`scaleX(${p})`;
+  },{passive:true});
+
+  const io=new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+  }),{threshold:.14});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  const spy=new IntersectionObserver(es=>es.forEach(e=>{
+    if(!e.isIntersecting) return;
+    document.querySelectorAll('.navlink').forEach(a=>a.classList.toggle('active', a.getAttribute('href')==='#'+e.target.id));
+  }),{rootMargin:'-40% 0px -55% 0px'});
+  ['signals','engine','pipeline','code','output'].forEach(id=>{const el=document.getElementById(id); if(el) spy.observe(el);});
+})();
+
+/* ═══════════════ شمارنده‌ها ═══════════════ */
+(function counters(){
+  const io=new IntersectionObserver(es=>es.forEach(e=>{
+    if(!e.isIntersecting) return;
+    const el=e.target, target=parseFloat(el.dataset.count), dec=+el.dataset.dec;
+    const t0=performance.now(), dur=1400;
+    (function step(t){
+      const p=Math.min((t-t0)/dur,1), ease=1-Math.pow(1-p,3);
+      el.textContent=(target*ease).toFixed(dec);
+      if(p<1) requestAnimationFrame(step);
+    })(t0);
+    io.unobserve(el);
+  }),{threshold:.5});
+  document.querySelectorAll('[data-count]').forEach(el=>io.observe(el));
+})();
+
+/* ═══════════════ نمایشگر کد ═══════════════ */
+let currentCode='';
+(function codeViewer(){
+  const tabs=$('#code-tabs');
+  tabs.innerHTML=CODE_FILES.map((f,i)=>`<button class="codetab ${i===0?'active':''}" data-id="${f.id}" data-name="${f.name}">${f.name}</button>`).join('');
+
+  function load(id,name){
+    const raw=(document.getElementById(id)?.textContent||'').replace(/^\n+|\s+$/g,'');
+    currentCode=raw;
+    $('#code-title').textContent=`tse-signal-scanner / ${name}`;
+    const code=$('#code-body');
+    try{ code.innerHTML = hljs.highlight(raw,{language:'python'}).value; }
+    catch{ code.textContent=raw; }
+    $('#code-gutter').innerHTML=raw.split('\n').map((_,i)=>`<span>${i+1}</span>`).join('');
+    tabs.querySelectorAll('.codetab').forEach(t=>t.classList.toggle('active',t.dataset.id===id));
+  }
+  tabs.addEventListener('click',e=>{
+    const b=e.target.closest('.codetab'); if(b) load(b.dataset.id,b.dataset.name);
+  });
+
+  $('#copy-btn').addEventListener('click',async()=>{
+    const label=$('#copy-label');
+    try{ await navigator.clipboard.writeText(currentCode); }
+    catch{
+      const ta=document.createElement('textarea'); ta.value=currentCode;
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    }
+    label.textContent='کپی شد ✓'; label.style.color='var(--green)';
+    setTimeout(()=>{label.textContent='کپی'; label.style.color='';},1600);
+  });
+
+  load(CODE_FILES[0].id, CODE_FILES[0].name);
+})();
+
+/* ═══════════════ خروجی ترمینال ═══════════════ */
+(function terminal(){
+  const g='style="color:#16e08c"', r='style="color:#ff5470"', m='style="color:#5d6c87"',
+        c='style="color:#5ecbff"', y='style="color:#ffc14d"', w='style="color:#e9eff9"';
+  const cell=(txt,width,color='')=>`<span class="col-cell" style="width:${width}px" ${color}>${txt}</span>`;
+  let rows=STOCKS.map((s,i)=>{
+    const chgCol=s.chgF>0?g:r;
+    const dots=s.tech.map(v=>`<span style="color:${v===1?'#16e08c':(v===-1?'#ff5470':'#3a4763')}">●</span>`).join(' ');
+    return cell(String(i+1).padStart(2,' '),26,m)+
+           cell(s.sym,96,w)+cell(s.price,86,c)+
+           cell(s.chg+'%',76,chgCol)+cell(s.sarane,78,`dir="ltr"`&&'')+
+           cell('×'+s.power.toFixed(2),64,'')+cell('×'+s.shock.toFixed(1),54,g)+
+           `<span class="col-cell" style="width:88px">${dots}</span>`+
+           cell(s.score.toFixed(1),58,y)+
+           cell(HZ[s.hz].fa,84,g)+cell(s.stop,70,r);
+  }).join('\n');
+  $('#term-body').innerHTML=`
+<span ${m}>$</span> <span ${w}>python main.py --once</span>
+<span ${m}>[12:25:04]</span> <span ${c}>INFO </span> اتصال به cdn.tsetmc.com … دریافت دیده‌بان × جریان نقدینگی
+<span ${m}>[12:25:05]</span> <span ${c}>INFO </span> snapshot: <span ${w}>730</span> نماد مشترک روی insCode — کش Parquet: <span ${w}>41</span> hit
+<span ${m}>[12:25:06]</span> <span ${c}>INFO </span> فیلترهای وتو: <span ${r}>41</span> نماد حذف شد <span ${m}>(۱۸ نقدشوندگی · ۱۴ حجم مبنا · ۹ صف فروش)</span>
+<span ${m}>[12:25:06]</span> <span ${c}>INFO </span> پایپ‌لاین کامل در <span ${g}>1.834</span> ثانیه
+<span ${m}>╭─────────────────────</span> <span ${w}>۱۰ سیگنال برتر — تابلورادار</span> <span ${m}>─────────────────────╮</span>
+${cell('#',26,m)}${cell('نماد',96,m)}${cell('آخرین',86,m)}${cell('Δ%',76,m)}${cell('سرانه',78,m)}${cell('قدرت',64,m)}${cell('xVol',54,m)}${cell('ک / م / ب',88,m)}${cell('امتیاز',58,m)}${cell('افق',84,m)}${cell('حدضرر',70,m)}
+<span ${m}>─────────────────────────────────────────────────────────────────────────────────────────────────────────</span>
+${rows}
+<span ${m}>╰────────────────────────────</span> <span ${g}>ذخیره شد ← signals.json</span> <span ${m}>────────────────────────────┘</span>
+<span ${g}>quant@tsetmc</span><span ${m}>:</span><span ${c}>~$</span> <span class="caret"></span>`;
+})();
+
+/* ═══════════════ خروجی JSON ═══════════════ */
+(function jsonView(){
+  const K='<span class="j-key">',S='<span class="j-str">',N='<span class="j-num">',P='<span class="j-punc">',E='</span>';
+  const rec=s=>`  ${P}{${E}
+    ${K}"rank"${E}${P}:${E} ${N}${STOCKS.indexOf(s)+1}${E}${P},${E}
+    ${K}"symbol"${E}${P}:${E} ${S}"${s.sym}"${E}${P},${E}
+    ${K}"company"${E}${P}:${E} ${S}"${s.name}"${E}${P},${E}
+    ${K}"last_price"${E}${P}:${E} ${N}${s.price.replace(',','')}${E}${P},${E}
+    ${K}"change_pct"${E}${P}:${E} ${N}${s.chg}${E}${P},${E}
+    ${K}"sarane_buy_mtm"${E}${P}:${E} ${N}${s.sarane.replace(',','')}${E}${P},${E}
+    ${K}"power_ratio"${E}${P}:${E} ${N}${s.power.toFixed(2)}${E}${P},${E}
+    ${K}"volume_shock"${E}${P}:${E} ${N}${s.shock.toFixed(1)}${E}${P},${E}
+    ${K}"score_total"${E}${P}:${E} ${N}${s.score.toFixed(1)}${E}${P},${E}
+    ${K}"horizon"${E}${P}:${E} ${S}"${HZ[s.hz].fa}"${E}${P},${E}
+    ${K}"stop_loss"${E}${P}:${E} ${N}${s.stop.replace(',','')}${E}
+  ${P}}${E}${STOCKS.indexOf(s)<2?P+','+E:''}`;
+  $('#json-body').innerHTML=`${P}{${E}
+  ${K}"generated_at"${E}${P}:${E} ${S}"2025-11-05T12:25:06+03:30"${E}${P},${E}
+  ${K}"signal_time"${E}${P}:${E} ${S}"12:25"${E}${P},${E}
+  ${K}"engine"${E}${P}:${E} ${S}"tablo-radar v2.1"${E}${P},${E}
+  ${K}"weights"${E}${P}:${E} ${P}{${E} ${K}"tablokhani"${E}${P}:${E} ${N}0.35${E}${P},${E} ${K}"short"${E}${P}:${E} ${N}0.25${E}${P},${E} ${K}"mid"${E}${P}:${E} ${N}0.25${E}${P},${E} ${K}"long"${E}${P}:${E} ${N}0.15${E} ${P}}${E}${P},${E}
+  ${K}"count"${E}${P}:${E} ${N}10${E}${P},${E}
+  ${K}"signals"${E}${P}:${E} ${P}[${E}
+${rec(STOCKS[0])}
+${rec(STOCKS[1])}
+${rec(STOCKS[2])}
+  <span class="j-punc">… ۷ رکورد دیگر …</span>
+  ${P}]${E}
+${P}}${E}`;
+})();
+
+refreshIcons();
+</script>
+</body>
+</html>
