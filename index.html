@@ -177,11 +177,14 @@
 
   /* ── ترمینال و JSON ─────────────────────────────── */
   .term{ background:#05080f; border:1px solid var(--line); border-radius:16px; overflow:hidden; direction:ltr; }
-  .termbody{ font-family:var(--mono); font-size:12px; line-height:2; padding:20px 22px; color:#a7f3d0; overflow-x:auto; }
+  .termbody{ font-family:var(--mono); font-size:12px; line-height:2; padding:20px 22px; color:#a7f3d0; overflow-x:auto; max-height:380px; overflow-y:auto; }
   .jsonbody{ font-family:var(--mono); font-size:12px; line-height:1.9; padding:20px 22px; overflow-x:auto; color:#c9d6ea; direction:ltr; }
   .j-key{ color:#5ecbff; } .j-str{ color:#39d98a; } .j-num{ color:#ffb454; } .j-punc{ color:#546180; }
   .col-cell{ display:inline-block; text-align:right; }
 
+  .spin{ display:inline-block; width:13px; height:13px; border-radius:99px;
+    border:2px solid rgba(22,224,140,.25); border-top-color:var(--green); animation:rot .8s linear infinite; }
+  @keyframes rot{ to{ transform:rotate(360deg); } }
   .caret{ display:inline-block; width:8px; height:16px; background:var(--green); vertical-align:-2px; animation:blink 1s steps(1) infinite; }
   @keyframes blink{ 50%{ opacity:0 } }
 
@@ -269,19 +272,19 @@
 
     <div class="reveal grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 max-w-3xl mx-auto" style="transition-delay:.32s">
       <div class="glass stat-big p-5">
-        <div class="num grad-text" dir="ltr"><span data-count="730" data-dec="0">0</span>+</div>
+        <div class="num grad-text" dir="ltr" id="st-scan">—</div>
         <div class="text-[12px] text-[var(--faint)] mt-2">نماد اسکن‌شده</div>
       </div>
       <div class="glass stat-big p-5">
-        <div class="num text-[var(--ink)]" dir="ltr"><span data-count="1.83" data-dec="2">0</span><span class="text-[18px] text-[var(--faint)]">s</span></div>
-        <div class="text-[12px] text-[var(--faint)] mt-2">زمان پردازش کامل</div>
+        <div class="num text-[var(--ink)]" dir="ltr" id="st-time">—</div>
+        <div class="text-[12px] text-[var(--faint)] mt-2">زمان واکشی</div>
       </div>
       <div class="glass stat-big p-5">
-        <div class="num text-[var(--red)]" dir="ltr"><span data-count="41" data-dec="0">0</span></div>
+        <div class="num text-[var(--red)]" dir="ltr" id="st-veto">—</div>
         <div class="text-[12px] text-[var(--faint)] mt-2">وتوی فیلترها</div>
       </div>
       <div class="glass stat-big p-5">
-        <div class="num grad-text" dir="ltr"><span data-count="10" data-dec="0">0</span></div>
+        <div class="num grad-text" dir="ltr" id="st-sig">—</div>
         <div class="text-[12px] text-[var(--faint)] mt-2">سیگنال نهایی</div>
       </div>
     </div>
@@ -304,17 +307,18 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="reveal flex flex-col md:flex-row md:items-end justify-between gap-6">
       <div>
-        <span class="eyebrow"><i data-lucide="list-ordered" style="width:13px;height:13px"></i> رتبه‌بندی نهایی — زمان تحلیل: ۱۲:۲۵</span>
+        <span class="eyebrow"><i data-lucide="satellite-dish" style="width:13px;height:13px"></i> رتبه‌بندی زنده — اتصال مستقیم به cdn.tsetmc.com</span>
         <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">۱۰ نماد برتر امروز بازار</h2>
         <p class="text-[var(--muted)] mt-3 max-w-xl text-[14.5px] leading-7">
           پس از عبور از فیلترهای وتوکننده نقدشوندگی و اعتبار نوسان، امتیاز جامع هر نماد از ترکیب وزنی چهار عامل محاسبه و نفرات برتر استخراج شده‌اند.
-          <span class="text-[var(--faint)] text-[12px]">(داده نمایشی)</span>
+          <span class="text-[var(--faint)] text-[12px]">(واکشی زنده؛ در صورت عدم دریافت، «—» نمایش داده می‌شود)</span>
         </p>
       </div>
       <div class="flex items-center gap-3 flex-wrap">
+        <span class="hchip h-short mono" dir="ltr"><i data-lucide="globe" style="width:11px;height:11px"></i>source: cdn.tsetmc.com</span>
         <span class="hchip h-mid mono" dir="ltr">Inner Join · insCode</span>
-        <span class="hchip h-long mono" dir="ltr">Parquet Cache</span>
-        <span class="hchip h-short">محاسبات برداری</span>
+        <span class="hchip h-long mono" dir="ltr">Retry ×3 + Backoff</span>
+        <span class="hchip h-mid" style="display:none">محاسبات برداری</span>
       </div>
     </div>
 
@@ -326,7 +330,12 @@
             <i data-lucide="activity" class="text-[var(--green)]" style="width:16px;height:16px"></i>
             <span class="font-bold text-[15px]">دیده‌بان امتیازدهی‌شده</span>
           </div>
-          <span class="mono text-[11.5px] text-[var(--faint)]" dir="ltr">scan: 1.834s · rows: 730 → 10</span>
+          <div class="flex items-center gap-3">
+            <span class="mono text-[11.5px] text-[var(--faint)] hidden sm:inline" dir="ltr" id="scan-meta">— در انتظار واکشی</span>
+            <button id="live-btn" class="flex items-center gap-1.5 text-[11.5px] font-bold text-[var(--green)] border border-[rgba(22,224,140,.35)] bg-[rgba(22,224,140,.06)] rounded-lg px-3 py-1.5 hover:bg-[rgba(22,224,140,.13)] transition-colors disabled:opacity-60">
+              <i data-lucide="rotate-cw" style="width:12px;height:12px"></i><span>واکشی مجدد</span>
+            </button>
+          </div>
         </div>
         <div class="overflow-x-auto">
           <table class="dtable">
@@ -341,6 +350,7 @@
             <tbody id="signal-rows"></tbody>
           </table>
         </div>
+        <div id="live-notice"></div>
         <div class="px-5 py-3.5 flex items-center gap-2 text-[12px] text-[var(--faint)] border-t border-[var(--line)]">
           <i data-lucide="mouse-pointer-click" style="width:13px;height:13px"></i>
           روی هر ردیف کلیک کنید تا بازشکافی امتیاز نمایش داده شود.
@@ -476,7 +486,7 @@
           </div>
           <p class="mono text-[12px] text-[var(--muted)] mt-4" dir="ltr">qTotTran5J &lt; 50,000,000,000 R</p>
           <p class="text-[13px] text-[var(--muted)] mt-2 leading-6">ریسک نقدشوندگی؛ خروج سخت از پوزیشن در بازار پرتلاطم.</p>
-          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr">✕ 18 symbols vetoed</span>
+          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr" data-vk="liq">—</span>
         </div>
         <div class="glass veto-card p-6">
           <div class="flex items-center gap-3">
@@ -486,7 +496,7 @@
           </div>
           <p class="mono text-[12px] text-[var(--muted)] mt-4" dir="ltr">tVol &lt; baseVol → veto</p>
           <p class="text-[13px] text-[var(--muted)] mt-2 leading-6">نوسان بدون پشتوانه حجم فاقد اعتبار سیگنالی است.</p>
-          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr">✕ 14 symbols vetoed</span>
+          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr" data-vk="vol">—</span>
         </div>
         <div class="glass veto-card p-6">
           <div class="flex items-center gap-3">
@@ -496,7 +506,7 @@
           </div>
           <p class="mono text-[12px] text-[var(--muted)] mt-4" dir="ltr">pl == pmin &amp;&amp; qd1 == 0 → veto</p>
           <p class="text-[13px] text-[var(--muted)] mt-2 leading-6">ایجاب صفر در کف قیمت؛ ریسک گیر افتادن در صف فروش سنگین.</p>
-          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr">✕ 9 symbols vetoed</span>
+          <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr" data-vk="queue">—</span>
         </div>
       </div>
     </div>
@@ -617,7 +627,7 @@
     <div class="reveal text-center max-w-2xl mx-auto">
       <span class="eyebrow"><i data-lucide="square-terminal" style="width:13px;height:13px"></i> خروجی تحویلی</span>
       <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">ترمینال <span class="mono grad-text" dir="ltr">rich</span> و فایل <span class="mono grad-text" dir="ltr">signals.json</span></h2>
-      <p class="text-[var(--muted)] mt-4 text-[14.5px]">پیش‌نمایش واقعی خروجی اجرای راس ساعت ۱۲:۲۵ — جدول رنگی کنسول و رتبه‌بندی ساخت‌یافته.</p>
+      <p class="text-[var(--muted)] mt-4 text-[14.5px]">لاگ زنده ارتباط مرورگر با CDN رسمی بورس اوراق بهادار تهران و فایل JSON واقعیِ تولیدشده از واکشی — فقط در صورت موفقیت‌آمیز بودن اتصال.</p>
     </div>
 
     <div class="grid lg:grid-cols-2 gap-6 mt-12 items-start">
@@ -628,7 +638,7 @@
             <i class="w-3 h-3 rounded-full" style="background:#febc2e"></i>
             <i class="w-3 h-3 rounded-full" style="background:#28c840"></i>
           </span>
-          <span class="mono text-[11.5px] text-[var(--faint)]">quant@tsetmc: python main.py --once</span>
+          <span class="mono text-[11.5px] text-[var(--faint)]">live@browser → cdn.tsetmc.com · لاگ زنده سیستم</span>
         </div>
         <div class="termbody" id="term-body"></div>
       </div>
@@ -636,7 +646,10 @@
       <div class="term reveal" style="transition-delay:.1s">
         <div class="flex items-center gap-3 px-5 py-3 border-b border-[var(--line)] bg-[rgba(255,255,255,.02)]">
           <i data-lucide="file-json" class="text-[var(--green)]" style="width:14px;height:14px"></i>
-          <span class="mono text-[11.5px] text-[var(--faint)]">signals.json — UTF-8 · 10 records</span>
+          <span class="mono text-[11.5px] text-[var(--faint)]">signals.json — خروجی واقعی واکشی</span>
+          <button id="json-dl" disabled class="mr-auto flex items-center gap-1.5 text-[11px] mono text-[var(--faint)] hover:text-[var(--green)] transition-colors border border-[var(--line)] rounded-lg px-3 py-1.5 disabled:opacity-40 disabled:pointer-events-none" style="direction:rtl">
+            <i data-lucide="download" style="width:12px;height:12px"></i><span>دانلود</span>
+          </button>
         </div>
         <div class="jsonbody" id="json-body"></div>
       </div>
@@ -1144,26 +1157,7 @@ if __name__ == "__main__":
 
 <script>
 /* ═══════════════ داده نمایشی بازار ═══════════════ */
-const STOCKS = [
-  {sym:'خساپا', name:'گروه سایپا',        price:'356.8', chg:'+4.13', chgF: 4.13, sarane:'1,842', power:1.68, shock:3.4, tech:[1,1,0],  score:92.0, f:{t:33,s:24,m:21,l:14}, hz:'short', stop:'338', rsi:'58.2 · خروج از اشباع فروش', macd:'هیستوگرام مثبت (۲ روز)', sma200:'قیمت ۸٪ بالای SMA200', seed:11},
-  {sym:'وبملت', name:'بانک ملت',          price:'738.2', chg:'+3.02', chgF: 3.02, sarane:'2,310', power:1.52, shock:2.8, tech:[1,1,1],  score:89.0, f:{t:31,s:21,m:23,l:14}, hz:'mid',   stop:'699', rsi:'62.4 · قدرت نسبی بالا',   macd:'کراس طلایی تازه',       sma200:'روند صعودی پایدار',  seed:29},
-  {sym:'خودرو', name:'ایران‌خودرو',        price:'328.4', chg:'+2.61', chgF: 2.61, sarane:'1,544', power:1.47, shock:2.5, tech:[1,1,0],  score:87.0, f:{t:31,s:23,m:19,l:14}, hz:'short', stop:'312', rsi:'55.7 · قدرت نسبی بالا',   macd:'همگرایی مثبت',          sma200:'نزدیک به SMA200',    seed:47},
-  {sym:'فولاد', name:'فولاد مبارکه',       price:'2,845', chg:'+1.84', chgF: 1.84, sarane:'3,120', power:1.38, shock:2.1, tech:[0,1,1],  score:85.0, f:{t:29,s:20,m:22,l:14}, hz:'long',  stop:'2,702', rsi:'63.1 · بدون اشباع',    macd:'هیستوگرام رو به رشد',   sma200:'سقف کانال بلندمدت',  seed:71},
-  {sym:'شستا',  name:'تأمین اجتماعی',      price:'592.5', chg:'+1.56', chgF: 1.56, sarane:'1,098', power:1.33, shock:1.9, tech:[1,1,0],  score:82.0, f:{t:29,s:19,m:21,l:13}, hz:'mid',   stop:'562', rsi:'57.9 · خروج از اشباع فروش', macd:'هیستوگرام مثبت',        sma200:'تثبیت بالای SMA200', seed:3},
-  {sym:'شپنا',  name:'پالایش اصفهان',      price:'5,420', chg:'+2.27', chgF: 2.27, sarane:'1,760', power:1.41, shock:2.3, tech:[1,1,0],  score:80.0, f:{t:28,s:19,m:20,l:13}, hz:'mid',   stop:'5,148', rsi:'59.3 · قدرت نسبی',     macd:'کراس صعودی سیگنال',     sma200:'شیب مثبت دویست‌روزه', seed:19},
-  {sym:'کگل',   name:'گل‌گهر',             price:'8,940', chg:'+1.12', chgF: 1.12, sarane:'2,240', power:1.26, shock:1.7, tech:[0,1,1],  score:78.0, f:{t:26,s:18,m:20,l:14}, hz:'long',  stop:'8,492', rsi:'61.0 · بدون اشباع',    macd:'هیستوگرام مثبت پیوسته', sma200:'فاصله ۱۴٪ بالای SMA200', seed:37},
-  {sym:'فارس',  name:'پتروشیمی فارس',      price:'4,312', chg:'+0.94', chgF: 0.94, sarane:'1,185', power:1.24, shock:1.6, tech:[0,1,1],  score:75.0, f:{t:25,s:16,m:20,l:14}, hz:'long',  stop:'4,096', rsi:'58.8 · خنثی مثبت',     macd:'همگرایی در نقطه صفر',   sma200:'روند صعودی بلندمدت', seed:53},
-  {sym:'حکشتی', name:'کشتیرانی ج.اسلامی',  price:'6,780', chg:'+1.35', chgF: 1.35, sarane:'964',   power:1.30, shock:1.8, tech:[1,1,0],  score:73.0, f:{t:25,s:17,m:19,l:12}, hz:'mid',   stop:'6,441', rsi:'54.6 · خروج از اشباع فروش', macd:'هیستوگرام مثبت',        sma200:'نزدیک به کراس طلایی', seed:83},
-  {sym:'وتجارت',name:'بانک تجارت',         price:'1,286', chg:'+0.78', chgF: 0.78, sarane:'875',   power:1.18, shock:1.5, tech:[1,0,0],  score:71.0, f:{t:23,s:16,m:19,l:13}, hz:'mid',   stop:'1,224', rsi:'52.1 · خنثی',           macd:'واکنش اولیه مثبت',      sma200:'زیر SMA200 (احتیاط)', seed:97},
-];
-const EXTRA_TICKS = [
-  {sym:'غدیر',price:'412.4',chg:'-1.12'},{sym:'اخابر',price:'1,204',chg:'+1.20'},
-  {sym:'شبندر',price:'2,118',chg:'+2.44'},{sym:'وغدیر',price:'886.3',chg:'-0.66'},
-  {sym:'غگیلا',price:'3,402',chg:'+0.88'},{sym:'رمپنا',price:'4,740',chg:'-2.31'},
-  {sym:'تاپیکو',price:'1,502',chg:'+0.21'},{sym:'ولملت',price:'622.1',chg:'+1.05'},
-  {sym:'خبهمن',price:'214.7',chg:'+4.98'},{sym:'پارسان',price:'1,218',chg:'+0.46'},
-  {sym:'فملی',price:'902.4',chg:'+0.97'},{sym:'غمارگ',price:'348.9',chg:'-3.02'},
-];
+/* بدون دیتاست نمایشی — همه مقادیر فقط از cdn.tsetmc.com می‌آیند */
 const HZ = {
   short:{fa:'کوتاه‌مدت', cls:'h-short', icon:'zap'},
   mid:  {fa:'میان‌مدت',  cls:'h-mid',   icon:'activity'},
@@ -1192,136 +1186,425 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a
 function scoreCls(v){ return v>=85 ? 'score-a' : 'score-b'; }
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 
-/* ═══════════════ نوار تیکر ═══════════════ */
-(function buildTicker(){
-  const items=[...STOCKS,...EXTRA_TICKS];
-  const html = items.map(s=>{
-    const up = !s.chg.startsWith('-');
-    return `<span class="tick-item">
-      <b class="text-[13px]">${s.sym}</b>
-      <span class="mono text-[12px] text-[var(--muted)]" dir="ltr">${s.price}</span>
-      <span class="mono text-[11.5px] ${up?'badge-up':'badge-down'}" dir="ltr">${s.chg}%</span>
-    </span>`;
-  }).join('');
-  $('#ticker-track').innerHTML = html + html; // دوتایی برای لوپ بی‌درز
-})();
+/* ═══════════════ هسته زنده اتصال به CDN بورس ═══════════════ */
+const API = {
+  mw: 'https://cdn.tsetmc.com/api/ClosingPrice/GetMarketWatch?market=0&paperTypes%5B0%5D=1&paperTypes%5B1%5D=2&paperTypes%5B2%5D=3&paperTypes%5B3%5D=4&paperTypes%5B4%5D=5&paperTypes%5B5%5D=6&paperTypes%5B6%5D=7&paperTypes%5B7%5D=8&paperTypes%5B8%5D=9&withBestLimits=false&hEven=0&RefID=0',
+  ct: 'https://cdn.tsetmc.com/api/ClientType/GetClientTypeAll',
+  hist: id => 'https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceInfoHistory/' + id,
+  retries: 3, timeout: 12000, base: 1200, factor: 1.8,
+};
+const LZW = { t: .35, s: .25, m: .25, l: .15 };
+const MIN_VAL = 50_000_000_000;       // حداقل ارزش معاملات (ریال)
+const STOP_PCT = .06;                 // سقف حد ضرر
+const LST = { busy: false, t0: 0, attempt: 0, timer: null, cd: null, rows: [], payload: null };
+const DASH = '<span class="text-[var(--faint)]">—</span>';
 
-/* ═══════════════ جدول سیگنال‌ها ═══════════════ */
-function techDots(arr){
-  return arr.map(v=>`<span class="tdot ${v===1?'bull':(v===-1?'bear':'')}"></span>`).join('<span class="inline-block w-1.5"></span>');
+const num = v => { const n = Number(String(v ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : NaN; };
+const gf = (o, ks) => { for (const k of ks) { if (o && o[k] != null && o[k] !== '') return num(o[k]); } return NaN; };
+const fmt = (n, d = 0) => Number.isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : null;
+const mcell = (n, d = 0, cls = '') => { const s = fmt(n, d); return s === null ? DASH : `<span class="mono ${cls}" dir="ltr">${s}</span>`; };
+const sMean = a => a.reduce((x, y) => x + y, 0) / a.length;
+const sig = (x, mid, k) => 100 / (1 + Math.exp(-k * (x - mid)));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const tFa = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
+/* — لاگ زنده ترمینال — */
+function termLog(lv, msg) {
+  const box = $('#term-body'); if (!box) return;
+  const col = { INFO: '#5ecbff', OK: '#16e08c', WARN: '#ffc14d', ERROR: '#ff5470' }[lv] || '#5ecbff';
+  const line = document.createElement('div');
+  line.innerHTML = `<span style="color:#5d6c87">[${tFa.format(new Date())}]</span> <span style="color:${col}">${lv.padEnd(5, ' ')}</span> <span style="color:#c9d6ea">${esc(msg)}</span>`;
+  box.appendChild(line);
+  while (box.children.length > 140) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
 }
-(function buildTable(){
-  $('#signal-rows').innerHTML = STOCKS.map((s,i)=>{
-    const h = HZ[s.hz];
-    const pwrW = Math.min(s.power/2.4,1)*100;
-    return `<tr data-i="${i}" class="${i===0?'active':''}">
-      <td><span class="rank ${i<3?'top':''}">${i+1}</span></td>
-      <td><div class="flex flex-col"><b class="text-[14px]">${s.sym}</b><span class="text-[10.5px] text-[var(--faint)]">${s.name}</span></div></td>
-      <td class="mono" dir="ltr">${s.price}</td>
-      <td class="mono ${s.chgF>0?'badge-up':'badge-down'}" dir="ltr">${s.chg}%</td>
-      <td class="mono" dir="ltr">${s.sarane}</td>
-      <td><div class="flex items-center gap-2">
-          <span class="mono text-[12.5px] ${s.power>=1.3?'text-[var(--green)]':'text-[var(--ink)]'}" dir="ltr">${s.power.toFixed(2)}</span>
-          <span class="pwr-wrap"><span class="pwr-fill" style="width:${pwrW}%"></span></span></div></td>
-      <td class="mono ${s.shock>=2?'text-[var(--green)]':''}" dir="ltr">×${s.shock.toFixed(1)}</td>
-      <td class="hidden md:table-cell"><canvas class="spark block" width="108" height="30" style="width:108px;height:30px" data-seed="${s.seed}"></canvas></td>
-      <td><span class="flex items-center">${techDots(s.tech)}</span></td>
-      <td><span class="score-badge ${scoreCls(s.score)}" dir="ltr">${s.score.toFixed(1)}</span></td>
-      <td><div class="flex flex-col gap-1.5">
-          <span class="hchip ${h.cls}"><i data-lucide="${h.icon}" style="width:11px;height:11px"></i>${h.fa}</span>
-          <span class="mono text-[10px] text-[var(--faint)]" dir="ltr">SL ${s.stop}</span></div></td>
-    </tr>`;
+
+/* — واکشی واقعی با Retry + Backoff نمایی — */
+async function fetchReal(url, tag, tries = API.retries) {
+  let last = null;
+  for (let i = 1; i <= tries; i++) {
+    try {
+      termLog('INFO', `تلاش ${i}/${tries} ← ${tag}`);
+      const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), API.timeout);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(to);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch (e) {
+      last = e; termLog('WARN', `تلاش ${i} ناموفق (${tag}): ${e.name === 'AbortError' ? 'timeout' : e.message}`);
+      if (i < tries) await sleep(API.base * Math.pow(API.factor, i - 1));
+    }
+  }
+  throw last;
+}
+
+async function mapLimit(arr, n, fn) {
+  const out = new Array(arr.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, arr.length) }, async () => {
+    while (i < arr.length) { const j = i++; out[j] = await fn(arr[j], j); }
+  }));
+  return out;
+}
+
+/* — ریاضیات تکنیکال روی آرایه — */
+function rsiLast2(c, p = 14) {
+  if (c.length < p + 2) return [NaN, NaN];
+  let g = 0, l = 0; const rsis = [];
+  for (let i = 1; i < c.length; i++) {
+    const d = c[i] - c[i - 1], up = Math.max(d, 0), dn = Math.max(-d, 0);
+    g = i <= p ? (g * (i - 1) + up) / i : (g * (p - 1) + up) / p;
+    l = i <= p ? (l * (i - 1) + dn) / i : (l * (p - 1) + dn) / p;
+    if (i >= p) rsis.push(l === 0 ? 100 : 100 - 100 / (1 + g / l));
+  }
+  return [rsis[rsis.length - 1], rsis[rsis.length - 2]];
+}
+const emaLast = (c, s) => { if (c.length < s) return NaN; const a = 2 / (s + 1); let e = c[0]; for (const v of c) e = a * v + (1 - a) * e; return e; };
+const smaLast = (c, n) => c.length >= n ? sMean(c.slice(-n)) : NaN;
+function macdHist(c) {
+  if (c.length < 35) return [NaN, NaN];
+  const a12 = 2 / 13, a26 = 2 / 27, a9 = 2 / 10;
+  let e12 = c[0], e26 = c[0], sg = 0; const hs = [];
+  for (const v of c) { e12 = a12 * v + (1 - a12) * e12; e26 = a26 * v + (1 - a26) * e26; const m = e12 - e26; sg = a9 * m + (1 - a9) * sg; hs.push(m - sg); }
+  return [hs[hs.length - 1], hs[hs.length - 5] ?? hs[0]];
+}
+
+/* — ساخت رکورد تحلیلی واقعی — */
+function buildRow(r, i) {
+  const f = r._f || {}, c = r._closes || [], vols = r._vols || [];
+  const pc = gf(r, ['pc']), pl = gf(r, ['pl']), pmin = gf(r, ['pmin']);
+  const chg = Number.isFinite(pc) && pc ? (pl - pc) / pc * 100 : NaN;
+  const biv = gf(f, ['buy_I_Volume', 'Buy_I_Volume']), bci = gf(f, ['buy_CountI', 'Buy_CountI']);
+  const siv = gf(f, ['sell_I_Volume', 'Sell_I_Volume']), sci = gf(f, ['sell_CountI', 'Sell_CountI']);
+  const sarB = Number.isFinite(biv) && Number.isFinite(bci) && bci ? biv * pc / bci / 1e7 : NaN;
+  const sarS = Number.isFinite(siv) && Number.isFinite(sci) && sci ? siv * pc / sci / 1e7 : NaN;
+  const power = Number.isFinite(sarB) && Number.isFinite(sarS) && sarS ? sarB / sarS : NaN;
+  const tVol = gf(r, ['tVol']);
+  const ma30 = vols.length >= 30 ? sMean(vols.slice(-30)) : NaN;
+  const shock = Number.isFinite(tVol) && Number.isFinite(ma30) && ma30 ? tVol / ma30 : NaN;
+  const dm = ['qd1', 'qd2', 'qd3'].map(k => gf(r, [k])).filter(Number.isFinite);
+  const sp = ['qo1', 'qo2', 'qo3'].map(k => gf(r, [k])).filter(Number.isFinite);
+  const dSum = dm.reduce((a, b) => a + b, 0), sSum = sp.reduce((a, b) => a + b, 0);
+  const obi = dm.length && sp.length && (dSum + sSum) ? (dSum - sSum) / (dSum + sSum) : NaN;
+
+  const [rsi, rsiP] = rsiLast2(c);
+  const e9 = emaLast(c, 9), e21 = emaLast(c, 21), s20 = smaLast(c, 20), s50 = smaLast(c, 50), s200 = smaLast(c, 200);
+  const s200p = c.length >= 220 ? smaLast(c.slice(0, -20), 200) : NaN;
+  const [mh, mh5] = macdHist(c);
+
+  let short = NaN, mid = NaN, long = NaN;
+  if (Number.isFinite(rsi) && Number.isFinite(e9) && Number.isFinite(e21)) {
+    short = (rsi >= 45 || rsi > rsiP ? 55 : 0) + (e9 > e21 ? 45 : 0);
+  }
+  if (Number.isFinite(s20) && Number.isFinite(s50) && Number.isFinite(mh)) {
+    mid = (s20 > s50 ? 40 : 0) + (mh > 0 ? 30 : (Number.isFinite(mh5) && mh > mh5 ? 30 : 0)) + (c.length && c[c.length - 1] > s20 ? 30 : 0);
+  }
+  if (Number.isFinite(s200) && c.length) {
+    const slope = Number.isFinite(s200p) && s200p ? (s200 - s200p) / s200p : NaN;
+    long = (c[c.length - 1] > s200 ? 60 : 15) + (Number.isFinite(slope) && slope > 0 ? 40 : 0);
+  } else if (c.length >= 60) { long = c[c.length - 1] > sMean(c) ? 40 : 15; }
+
+  let tablo = NaN;
+  if (Number.isFinite(power) || Number.isFinite(shock)) {
+    tablo = .4 * (Number.isFinite(power) ? sig(power, 1.15, 8) : 50)
+          + .3 * (Number.isFinite(shock) ? sig(shock, 1.6, 1.6) : 50)
+          + .2 * (Number.isFinite(obi) ? sig(obi, .10, 10) : 50)
+          + .1 * (Number.isFinite(chg) ? sig(chg, 0, 2) : 50);
+  }
+  const score = [ [tablo, LZW.t], [short, LZW.s], [mid, LZW.m], [long, LZW.l] ].every(([v]) => Number.isFinite(v))
+    ? tablo * LZW.t + short * LZW.s + mid * LZW.m + long * LZW.l : NaN;
+  const stop = Number.isFinite(pl) ? Math.max(Number.isFinite(pmin) && pmin > 0 ? pmin : -Infinity, pl * (1 - STOP_PCT)) : NaN;
+  const hz = score !== score ? null : (short >= 70 ? 'short' : (long >= 70 ? 'long' : 'mid'));
+  const fx = {
+    t: Number.isFinite(tablo) ? Math.round(tablo * LZW.t) : null,
+    s: Number.isFinite(short) ? Math.round(short * LZW.s) : null,
+    m: Number.isFinite(mid) ? Math.round(mid * LZW.m) : null,
+    l: Number.isFinite(long) ? Math.round(long * LZW.l) : null,
+  };
+  return { i, sym: r.lVal18AFC || r.lSymbol || '—', name: r.lVal30 || '', insCode: String(r.insCode || ''),
+    pl, pc, chg, sarB, power, shock, closes: c, score, f: fx, hz, stop, rsi, mh, s200,
+    tech: [Number.isFinite(short) ? (short >= 60 ? 1 : 0) : null, Number.isFinite(mid) ? (mid >= 60 ? 1 : 0) : null, Number.isFinite(long) ? (long >= 60 ? 1 : 0) : null] };
+}
+
+/* — رندر وضعیت‌ها — */
+function notice(kind, html) {
+  const n = $('#live-notice'); if (!n) return;
+  if (kind === 'none') { n.className = ''; n.innerHTML = ''; return; }
+  const cls = {
+    load: 'border-[rgba(76,201,255,.35)] bg-[rgba(76,201,255,.06)] text-[#c2e2f5]',
+    ok: 'border-[rgba(22,224,140,.35)] bg-[rgba(22,224,140,.07)] text-[#bfe9d4]',
+    fail: 'border-[rgba(255,84,112,.35)] bg-[rgba(255,84,112,.07)] text-[#f3c4cd]',
+  }[kind];
+  n.className = `mx-5 mt-4 rounded-xl border px-4 py-3 text-[12px] leading-6 ${cls}`;
+  n.innerHTML = html;
+}
+function setStats(s) {
+  $('#st-scan').textContent = s ? fmt(s.scan) : '—';
+  $('#st-time').textContent = s ? s.time : '—';
+  $('#st-veto').textContent = s ? fmt(s.veto) : '—';
+  $('#st-sig').textContent = s ? fmt(s.sig) : '—';
+}
+function setVetoBadges(o) {
+  document.querySelectorAll('[data-vk]').forEach(el => {
+    el.textContent = o && Number.isFinite(o[el.dataset.vk]) ? `✕ ${o[el.dataset.vk]} symbols vetoed` : '—';
+  });
+}
+function setTicker(mode, items) {
+  const tr = $('#ticker-track'); if (!tr) return;
+  let half = '';
+  if (mode === 'ok') {
+    half = items.map(s => `<span class="tick-item"><b class="text-[13px]">${esc(s.sym)}</b><span class="mono text-[12px] text-[var(--muted)]" dir="ltr">${s.price}</span><span class="mono text-[11.5px] ${s.up ? 'badge-up' : 'badge-down'}" dir="ltr">${s.chg}</span></span>`).join('');
+  } else {
+    const msg = mode === 'load'
+      ? '<i class="spin"></i><span class="text-[var(--muted)]">در حال اتصال به cdn.tsetmc.com …</span>'
+      : '<i data-lucide="unplug" style="width:13px;height:13px;color:var(--red)"></i><span class="text-[var(--red)]">عدم دریافت اطلاعات از سرور بورس — تلاش مجدد خودکار</span>';
+    half = Array.from({ length: 8 }, () => `<span class="tick-item flex items-center gap-2">${msg}</span>`).join('');
+  }
+  tr.innerHTML = half + half; refreshIcons();
+}
+const skl = w => `<span class="inline-block h-2.5 rounded-full bg-white/10 animate-pulse" style="width:${w}px"></span>`;
+function rowsTable(mode, list) {
+  const tb = $('#signal-rows'); if (!tb) return;
+  if (mode === 'load') {
+    tb.innerHTML = Array.from({ length: 10 }, (_, i) => `<tr><td><span class="rank">${i + 1}</span></td><td>${skl(48)}<div class="mt-1.5">${skl(64)}</div></td><td>${skl(44)}</td><td>${skl(30)}</td><td>${skl(38)}</td><td>${skl(56)}</td><td>${skl(30)}</td><td class="hidden md:table-cell">${skl(108)}</td><td>${skl(62)}</td><td>${skl(34)}</td><td>${skl(66)}</td></tr>`).join('');
+    return;
+  }
+  if (mode === 'dash' || !list || !list.length) {
+    tb.innerHTML = Array.from({ length: 10 }, (_, i) => `<tr class="opacity-80"><td><span class="rank">${i + 1}</span></td><td>${DASH}</td><td>${DASH}</td><td>${DASH}</td><td>${DASH}</td><td>${DASH}</td><td>${DASH}</td><td class="hidden md:table-cell">${DASH}</td><td>${DASH}</td><td>${DASH}</td><td>${DASH}</td></tr>`).join('');
+    return;
+  }
+  tb.innerHTML = list.map((s, i) => {
+    const h = s.hz ? HZ[s.hz] : null;
+    const chgC = Number.isFinite(s.chg) ? (s.chg > 0 ? 'badge-up' : 'badge-down') : '';
+    const chgT = Number.isFinite(s.chg) ? `<span class="mono ${chgC}" dir="ltr">${s.chg >= 0 ? '+' : ''}${s.chg.toFixed(2)}%</span>` : DASH;
+    const dots = s.tech.every(v => v === null) ? DASH : s.tech.map(v => v === null ? '<span class="text-[var(--faint)]">—</span>' : `<span class="tdot ${v === 1 ? 'bull' : ''}"></span>`).join('<span class="inline-block w-1.5"></span>');
+    const sc = Number.isFinite(s.score) ? `<span class="score-badge ${scoreCls(s.score)}" dir="ltr">${s.score.toFixed(1)}</span>` : DASH;
+    const hzH = h ? `<div class="flex flex-col gap-1.5"><span class="hchip ${h.cls}"><i data-lucide="${h.icon}" style="width:11px;height:11px"></i>${h.fa}</span>${Number.isFinite(s.stop) ? `<span class="mono text-[10px] text-[var(--faint)]" dir="ltr">SL ${fmt(s.stop)}</span>` : ''}</div>` : DASH;
+    const spark = s.closes.length >= 10 ? `<canvas class="spark block" width="108" height="30" style="width:108px;height:30px" data-i="${i}"></canvas>` : DASH;
+    const pwr = Number.isFinite(s.power) ? `<div class="flex items-center gap-2"><span class="mono text-[12.5px] ${s.power >= 1.3 ? 'text-[var(--green)]' : 'text-[var(--ink)]'}" dir="ltr">${s.power.toFixed(2)}</span><span class="pwr-wrap"><span class="pwr-fill" style="width:${Math.min(s.power / 2.4, 1) * 100}%"></span></span></div>` : DASH;
+    return `<tr data-r="${i}" class="${i === 0 ? 'active' : ''}"><td><span class="rank ${i < 3 ? 'top' : ''}">${i + 1}</span></td>
+      <td><div class="flex flex-col"><b class="text-[14px]">${esc(s.sym)}</b><span class="text-[10.5px] text-[var(--faint)]">${esc(s.name)}</span></div></td>
+      <td>${mcell(s.pl)}</td><td>${chgT}</td><td>${mcell(s.sarB)}</td><td>${pwr}</td>
+      <td>${Number.isFinite(s.shock) ? `<span class="mono ${s.shock >= 2 ? 'text-[var(--green)]' : ''}" dir="ltr">×${s.shock.toFixed(1)}</span>` : DASH}</td>
+      <td class="hidden md:table-cell">${spark}</td><td><span class="flex items-center">${dots}</span></td><td>${sc}</td><td>${hzH}</td></tr>`;
   }).join('');
-
-  $('#signal-rows').addEventListener('click', e=>{
-    const tr = e.target.closest('tr[data-i]'); if(!tr) return;
-    document.querySelectorAll('#signal-rows tr').forEach(r=>r.classList.remove('active'));
-    tr.classList.add('active');
-    updatePanel(+tr.dataset.i);
+  refreshIcons();
+}
+function sparksDraw(list) {
+  document.querySelectorAll('#signal-rows canvas.spark').forEach(cv => {
+    const row = list[+cv.dataset.i]; if (!row) return;
+    const pts = row.closes.slice(-30); if (pts.length < 2) return;
+    const ctx = cv.getContext('2d'); const W = cv.width, H = cv.height;
+    const lo = Math.min(...pts), hi = Math.max(...pts), pad = (hi - lo) * .1 + 1e-9;
+    const x = i => i * (W - 6) / (pts.length - 1) + 3, y = p => H - 4 - ((p - lo + pad) / (hi - lo + 2 * pad)) * (H - 9);
+    ctx.clearRect(0, 0, W, H);
+    const grd = ctx.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, 'rgba(22,224,140,.35)'); grd.addColorStop(1, 'rgba(22,224,140,0)');
+    ctx.beginPath(); ctx.moveTo(x(0), y(pts[0])); pts.forEach((p, i) => ctx.lineTo(x(i), y(p)));
+    ctx.lineTo(x(pts.length - 1), H); ctx.lineTo(x(0), H); ctx.closePath(); ctx.fillStyle = grd; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x(0), y(pts[0])); pts.forEach((p, i) => ctx.lineTo(x(i), y(p)));
+    ctx.strokeStyle = '#16e08c'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x(pts.length - 1), y(pts[pts.length - 1]), 2.4, 0, 7); ctx.fillStyle = '#6cf2c0'; ctx.fill();
   });
-})();
-
-/* ═══════════════ اسپارک‌لاین ═══════════════ */
-(function drawSparks(){
-  document.querySelectorAll('.spark').forEach(cv=>{
-    const ctx = cv.getContext('2d'), rnd = mulberry32(+cv.dataset.seed);
-    const W=cv.width,H=cv.height,n=28; let v=0.25+rnd()*0.2; const pts=[];
-    for(let i=0;i<n;i++){ v+= (rnd()-0.42)*0.09; v=Math.max(0.05,Math.min(0.95,v)); pts.push(v); }
-    ctx.clearRect(0,0,W,H);
-    const x=i=>i*(W-6)/(n-1)+3, y=p=>H-4-p*(H-9);
-    const grd = ctx.createLinearGradient(0,0,0,H);
-    grd.addColorStop(0,'rgba(22,224,140,.35)'); grd.addColorStop(1,'rgba(22,224,140,0)');
-    ctx.beginPath(); ctx.moveTo(x(0),y(pts[0]));
-    pts.forEach((p,i)=>ctx.lineTo(x(i),y(p)));
-    ctx.lineTo(x(n-1),H); ctx.lineTo(x(0),H); ctx.closePath(); ctx.fillStyle=grd; ctx.fill();
-    ctx.beginPath(); ctx.moveTo(x(0),y(pts[0]));
-    pts.forEach((p,i)=>ctx.lineTo(x(i),y(p)));
-    ctx.strokeStyle='#16e08c'; ctx.lineWidth=1.6; ctx.lineJoin='round'; ctx.stroke();
-    ctx.beginPath(); ctx.arc(x(n-1),y(pts[n-1]),2.4,0,7); ctx.fillStyle='#6cf2c0'; ctx.fill();
-  });
-})();
-
-/* ═══════════════ پنل جزئیات ═══════════════ */
-function updatePanel(i){
-  const s = STOCKS[i], h = HZ[s.hz];
-  const stopPct = ((parseFloat(s.stop.replace(',',''))-parseFloat(s.price.replace(',','')))/parseFloat(s.price.replace(',',''))*100).toFixed(1);
-  $('#detail-panel').innerHTML = `
-  <div class="glass p-6" style="border-radius:20px">
+}
+function detailNone(kind, reason) {
+  const p = $('#detail-panel'); if (!p) return;
+  if (kind === 'load') {
+    p.innerHTML = `<div class="glass p-6 text-center" style="border-radius:20px"><div class="flex justify-center py-8"><span class="spin" style="width:22px;height:22px"></span></div><p class="text-[13px] text-[var(--muted)]">در حال اتصال به CDN رسمی بورس و دریافت داده …</p></div>`;
+    return;
+  }
+  p.innerHTML = `<div class="glass p-6 text-center" style="border-radius:20px">
+    <span class="inline-grid place-items-center w-12 h-12 rounded-2xl my-4" style="background:rgba(255,84,112,.08);border:1px solid rgba(255,84,112,.3)"><i data-lucide="satellite" style="width:20px;height:20px;color:var(--red)"></i></span>
+    <b class="block text-[15px]">عدم دریافت اطلاعات</b>
+    <p class="text-[12px] text-[var(--faint)] mt-2 leading-6">${esc(reason || 'ارتباط با سرورهای بورس برقرار نشد.')}</p>
+    <button id="dp-retry" class="btn-ghost mt-5 !py-2.5 !px-5 text-[12.5px] mx-auto"><i data-lucide="rotate-cw" style="width:13px;height:13px"></i>تلاش مجدد</button></div>`;
+  refreshIcons();
+}
+function detail(s) {
+  const p = $('#detail-panel'); if (!p || !s) return;
+  const h = s.hz ? HZ[s.hz] : null;
+  const bars = FACTORS.map(f => {
+    const v = s.f[f.key];
+    return `<div><div class="flex justify-between text-[11.5px] mb-1.5"><span style="color:${f.color}">${f.fa}</span><span class="mono text-[var(--muted)]" dir="ltr">${v === null ? '—' : v + ' / ' + f.max}</span></div><div class="fbar"><div class="fill" data-w="${v === null ? 0 : v / f.max * 100}" style="background:${f.grad}"></div></div></div>`;
+  }).join('');
+  const stat = (lbl, val, cls) => `<div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">${lbl}</p><p class="mono text-[15px] font-bold mt-1 ${cls || ''}" dir="ltr">${val}</p></div>`;
+  p.innerHTML = `<div class="glass p-6" style="border-radius:20px">
     <div class="flex items-start justify-between gap-3">
-      <div>
-        <div class="flex items-center gap-2.5">
-          <b class="text-[22px]">${s.sym}</b>
-          <span class="hchip ${h.cls}"><i data-lucide="${h.icon}" style="width:11px;height:11px"></i>${h.fa}</span>
-        </div>
-        <p class="text-[12px] text-[var(--faint)] mt-1">${s.name}</p>
-      </div>
-      <div class="text-center">
-        <div class="mono font-extrabold text-[30px] leading-none ${s.score>=85?'text-[var(--green)]':'text-[#9ee9c8]'}" dir="ltr">${s.score.toFixed(1)}</div>
-        <div class="text-[10.5px] text-[var(--faint)] mt-1.5">امتیاز جامع / ۱۰۰</div>
-      </div>
+      <div><div class="flex items-center gap-2.5"><b class="text-[22px]">${esc(s.sym)}</b>${h ? `<span class="hchip ${h.cls}"><i data-lucide="${h.icon}" style="width:11px;height:11px"></i>${h.fa}</span>` : ''}</div><p class="text-[12px] text-[var(--faint)] mt-1">${esc(s.name)}</p></div>
+      <div class="text-center"><div class="mono font-extrabold text-[30px] leading-none ${Number.isFinite(s.score) && s.score >= 85 ? 'text-[var(--green)]' : 'text-[#9ee9c8]'}" dir="ltr">${Number.isFinite(s.score) ? s.score.toFixed(1) : '—'}</div><div class="text-[10.5px] text-[var(--faint)] mt-1.5">امتیاز جامع / ۱۰۰</div></div>
     </div>
-
     <div class="flex items-baseline gap-3 mt-4 pb-5 border-b border-[var(--line)]">
-      <span class="mono text-[20px] font-bold" dir="ltr">${s.price}</span>
-      <span class="text-[11px] text-[var(--faint)]">تومان</span>
-      <span class="mono text-[13px] ${s.chgF>0?'badge-up':'badge-down'}" dir="ltr">${s.chg}%</span>
+      ${mcell(s.pl, 0, 'text-[20px] font-bold')}<span class="text-[11px] text-[var(--faint)]">ریال</span>
+      ${Number.isFinite(s.chg) ? `<span class="mono text-[13px] ${s.chg > 0 ? 'badge-up' : 'badge-down'}" dir="ltr">${s.chg >= 0 ? '+' : ''}${s.chg.toFixed(2)}%</span>` : DASH}
     </div>
-
     <p class="text-[12px] font-bold mt-5 mb-3 flex items-center gap-2"><i data-lucide="chart-pie" class="text-[var(--green)]" style="width:13px;height:13px"></i>بازشکافی امتیاز</p>
-    <div class="space-y-3" id="fbars">
-      ${FACTORS.map(f=>`
-        <div>
-          <div class="flex justify-between text-[11.5px] mb-1.5">
-            <span style="color:${f.color}">${f.fa}</span>
-            <span class="mono text-[var(--muted)]" dir="ltr">${s.f[f.key]} / ${f.max}</span>
-          </div>
-          <div class="fbar"><div class="fill" data-w="${s.f[f.key]/f.max*100}" style="background:${f.grad}"></div></div>
-        </div>`).join('')}
-    </div>
-
+    <div class="space-y-3" id="fbars">${bars}</div>
     <div class="grid grid-cols-2 gap-3 mt-5">
-      <div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">سرانه خرید حقیقی</p><p class="mono text-[15px] font-bold mt-1 text-[var(--green)]" dir="ltr">${s.sarane} <span class="text-[10px] text-[var(--faint)]">م.ت</span></p></div>
-      <div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">قدرت خریدار/فروشنده</p><p class="mono text-[15px] font-bold mt-1" dir="ltr">×${s.power.toFixed(2)}</p></div>
-      <div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">ضریب حجم مشکوک</p><p class="mono text-[15px] font-bold mt-1 ${s.shock>=2?'text-[var(--green)]':''}" dir="ltr">×${s.shock.toFixed(1)}</p></div>
-      <div class="stat-mini"><p class="text-[10.5px] text-[var(--faint)]">حد ضرر محاسباتی</p><p class="mono text-[15px] font-bold mt-1 text-[var(--red)]" dir="ltr">${s.stop} <span class="text-[10px]">(${stopPct}%)</span></p></div>
+      ${stat('سرانه خرید حقیقی (م.ت)', Number.isFinite(s.sarB) ? fmt(s.sarB) : '—', 'text-[var(--green)]')}
+      ${stat('قدرت خریدار/فروشنده', Number.isFinite(s.power) ? '×' + s.power.toFixed(2) : '—', '')}
+      ${stat('ضریب حجم مشکوک', Number.isFinite(s.shock) ? '×' + s.shock.toFixed(1) : '—', Number.isFinite(s.shock) && s.shock >= 2 ? 'text-[var(--green)]' : '')}
+      ${stat('حد ضرر محاسباتی', Number.isFinite(s.stop) ? fmt(s.stop) : '—', 'text-[var(--red)]')}
     </div>
-
     <div class="mt-5 space-y-2.5 text-[12px]">
-      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="activity" style="width:12px;height:12px"></i>RSI(14)</span><span class="text-[var(--muted)] text-[11.5px]">${s.rsi}</span></div>
-      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="chart-column" style="width:12px;height:12px"></i>MACD</span><span class="text-[var(--muted)] text-[11.5px]">${s.macd}</span></div>
-      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="trending-up" style="width:13px;height:13px"></i>SMA200</span><span class="text-[var(--muted)] text-[11.5px]">${s.sma200}</span></div>
-    </div>
-
-    <div class="mt-5 rounded-xl border border-[rgba(22,224,140,.25)] bg-[rgba(22,224,140,.06)] px-4 py-3 text-[11.5px] leading-6 text-[#bfe9d4]">
-      <b class="text-[var(--green)]">قاعده ورود:</b> تثبیت قیمت بالای <span class="mono" dir="ltr">${s.price}</span> تومان در ساعت ۱۲:۲۵؛ خروج خودکار در شکست حد ضرر <span class="mono" dir="ltr">${s.stop}</span>.
+      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="activity" style="width:12px;height:12px"></i>RSI(14)</span><span class="mono text-[var(--muted)] text-[11.5px]" dir="ltr">${Number.isFinite(s.rsi) ? s.rsi.toFixed(1) : '—'}</span></div>
+      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="chart-column" style="width:12px;height:12px"></i>MACD Hist</span><span class="mono text-[var(--muted)] text-[11.5px]" dir="ltr">${Number.isFinite(s.mh) ? s.mh.toFixed(1) : '—'}</span></div>
+      <div class="flex items-center justify-between gap-2"><span class="text-[var(--faint)] flex items-center gap-1.5"><i data-lucide="trending-up" style="width:13px;height:13px"></i>SMA200</span><span class="mono text-[var(--muted)] text-[11.5px]" dir="ltr">${Number.isFinite(s.s200) ? fmt(s.s200) : '—'}</span></div>
     </div>
   </div>`;
   refreshIcons();
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    document.querySelectorAll('#fbars .fill').forEach(el=> el.style.width = el.dataset.w+'%');
-  }));
+  requestAnimationFrame(() => requestAnimationFrame(() => document.querySelectorAll('#fbars .fill').forEach(el => el.style.width = el.dataset.w + '%')));
 }
-updatePanel(0);
+function jsonRender(payload, err) {
+  const b = $('#json-body'), dl = $('#json-dl'); if (!b) return;
+  dl.disabled = !payload;
+  if (!payload) {
+    b.innerHTML = `<div class="text-center py-10">
+      <span class="j-punc block text-[15px]">${err ? '✕ عدم دریافت اطلاعات' : '… در حال واکشی از cdn.tsetmc.com'}</span>
+      <span class="j-punc block mt-2 text-[11px]">${err ? esc(err) : 'خروجی signals.json پس از دریافت موفق داده اینجا رندر می‌شود.'}</span>
+      <span class="j-punc block mt-6" dir="ltr">{ <span class="j-str">"no_data"</span>: true }</span></div>`;
+    return;
+  }
+  const K = '<span class="j-key">', S = '<span class="j-str">', N = '<span class="j-num">', P = '<span class="j-punc">', E = '</span>';
+  const v = x => x === null || x === undefined || x !== x ? '<span class="j-punc">null</span>' : (typeof x === 'string' ? S + '"' + esc(x) + '"' + E : N + x + E);
+  const rec = (r, k) => `  ${P}{${E} ${K}"rank"${E}${P}:${E} ${N}${k + 1}${E}${P},${E} ${K}"symbol"${E}${P}:${E} ${S}"${esc(r.sym)}"${E}${P},${E} ${K}"last_price"${E}${P}:${E} ${v(Number.isFinite(r.pl) ? r.pl : null)}${P},${E} ${K}"change_pct"${E}${P}:${E} ${v(Number.isFinite(r.chg) ? +r.chg.toFixed(2) : null)}${P},${E} ${K}"power_ratio"${E}${P}:${E} ${v(Number.isFinite(r.power) ? +r.power.toFixed(2) : null)}${P},${E} ${K}"volume_shock"${E}${P}:${E} ${v(Number.isFinite(r.shock) ? +r.shock.toFixed(1) : null)}${P},${E} ${K}"score_total"${E}${P}:${E} ${v(Number.isFinite(r.score) ? +r.score.toFixed(1) : null)}${P},${E} ${K}"horizon"${E}${P}:${E} ${v(r.hz ? HZ[r.hz].fa : null)}${P},${E} ${K}"stop_loss"${E}${P}:${E} ${v(Number.isFinite(r.stop) ? Math.round(r.stop) : null)} ${P}}${E}${k < payload.signals.length - 1 ? P + ',' + E : ''}`;
+  b.innerHTML = `${P}{${E}
+  ${K}"generated_at"${E}${P}:${E} ${S}"${payload.generated_at}"${E}${P},${E}
+  ${K}"source"${E}${P}:${E} ${S}"${payload.source}"${E}${P},${E}
+  ${K}"count"${E}${P}:${E} ${N}${payload.count}${E}${P},${E}
+  ${K}"signals"${E}${P}:${E} ${P}[${E}
+${payload.signals.map(rec).join('\n')}
+  ${P}]${E}
+${P}}${E}`;
+}
+
+function scheduleRetry(sec, label) {
+  clearTimeout(LST.timer); clearInterval(LST.cd);
+  let left = sec;
+  const tickEl = () => { const s = document.getElementById('retry-in'); if (s) s.textContent = left > 0 ? ` (${left} ثانیه تا ${label})` : ''; };
+  tickEl();
+  LST.cd = setInterval(() => { left -= 1; tickEl(); if (left <= 0) clearInterval(LST.cd); }, 1000);
+  LST.timer = setTimeout(() => runScan(false), sec * 1000);
+}
+
+/* — پایپ‌لاین اصلی واکشی زنده — */
+async function runScan(manual) {
+  if (LST.busy) return;
+  LST.busy = true; LST.attempt++; LST.t0 = performance.now();
+  clearTimeout(LST.timer); clearInterval(LST.cd);
+  const btn = $('#live-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span><span>در حال واکشی …</span>'; }
+  $('#scan-meta').textContent = '… در حال اتصال به CDN';
+  notice('load', '<span class="inline-flex items-center gap-2"><i class="spin"></i>در حال اتصال مستقیم به <span class="mono" dir="ltr">cdn.tsetmc.com</span> و دریافت دیده‌بان بازار + جریان نقدینگی …</span>');
+  setStats(null); setVetoBadges(null); setTicker('load'); rowsTable('load'); detailNone('load'); jsonRender(null);
+  termLog('INFO', manual ? `واکشی مجدد دستی (تلاش #${LST.attempt})` : `شروع اسکن خودکار (تلاش #${LST.attempt})`);
+  try {
+    const [mw, ct] = await Promise.all([
+      fetchReal(API.mw, 'GetMarketWatch'),
+      fetchReal(API.ct, 'GetClientTypeAll'),
+    ]);
+    const W = (mw && mw.marketwatch) || [], C = (ct && ct.clientType) || [];
+    if (!W.length) throw new Error('پاسخ دیده‌بان بازار خالی است');
+    termLog('OK', `دریافت شد — دیده‌بان: ${W.length} نماد · حقیقی-حقوقی: ${C.length} رکورد`);
+
+    const flow = new Map(C.map(r => [String(r.insCode ?? r.inscode), r]));
+    const J = W.filter(w => flow.has(String(w.insCode)));
+    termLog('INFO', `Inner Join روی insCode → ${J.length} نماد مشترک`);
+
+    let v1 = 0, v2 = 0, v3 = 0; const cand = [];
+    for (const r of J) {
+      const tv = gf(r, ['qTotTran5J']), vol = gf(r, ['tVol']), bv = gf(r, ['baseVol']);
+      const pl = gf(r, ['pl']), pmn = gf(r, ['pmin']), qd1 = gf(r, ['qd1']);
+      if (!Number.isFinite(tv) || tv < MIN_VAL) { v1++; continue; }
+      if (Number.isFinite(bv) && Number.isFinite(vol) && vol < bv) { v2++; continue; }
+      if (Number.isFinite(pl) && Number.isFinite(pmn) && pl === pmn && Number.isFinite(qd1) && qd1 <= 0) { v3++; continue; }
+      cand.push(Object.assign({}, r, { _f: flow.get(String(r.insCode)) }));
+    }
+    termLog('INFO', `فیلترهای وتو: ${v1 + v2 + v3} نماد حذف (نقدشوندگی ${v1} · حجم مبنا ${v2} · صف فروش ${v3})`);
+    setVetoBadges({ liq: v1, vol: v2, queue: v3 });
+
+    cand.sort((a, b) => gf(b, ['qTotTran5J']) - gf(a, ['qTotTran5J']));
+    const seeds = cand.slice(0, 14);
+    termLog('INFO', `واکشی تاریخچه تعدیل‌شده ${seeds.length} کاندید از CDN …`);
+    await mapLimit(seeds, 4, async r => {
+      try {
+        const h = await fetchReal(API.hist(r.insCode), 'تاریخچه ' + (r.lVal18AFC || r.insCode), 1);
+        const arr = ((h && h.closingPriceInfo) || []).slice().sort((a, b) => num(a.dEven) - num(b.dEven));
+        r._closes = arr.map(x => gf(x, ['priceMN', 'pDrCotVal'])).filter(Number.isFinite);
+        r._vols = arr.map(x => gf(x, ['qTotTran5J'])).filter(Number.isFinite);
+      } catch (e) { r._closes = []; r._vols = []; termLog('WARN', 'تاریخچه ' + (r.lVal18AFC || r.insCode) + ' دریافت نشد'); }
+    });
+
+    const rows = seeds.map((r, i) => buildRow(r, i))
+      .sort((a, b) => (Number.isFinite(b.score) ? b.score : -1) - (Number.isFinite(a.score) ? a.score : -1));
+    const signals = rows.slice(0, 10);
+    LST.rows = signals;
+    const el = ((performance.now() - LST.t0) / 1000).toFixed(2);
+    const sigCount = signals.filter(s => Number.isFinite(s.score)).length;
+
+    setStats({ scan: W.length, time: el + 's', veto: v1 + v2 + v3, sig: sigCount });
+    $('#scan-meta').textContent = `scan: ${el}s · rows: ${W.length} → ${signals.length}`;
+    termLog('OK', `پایپ‌لاین کامل در ${el} ثانیه — ${signals.length} ردیف رتبه‌بندی شد`);
+
+    const byVal = W.slice().sort((a, b) => gf(b, ['qTotTran5J']) - gf(a, ['qTotTran5J'])).slice(0, 16);
+    setTicker('ok', byVal.map(r => {
+      const pl = gf(r, ['pl']), pc = gf(r, ['pc']);
+      const chg = Number.isFinite(pc) && pc ? (pl - pc) / pc * 100 : NaN;
+      return { sym: r.lVal18AFC || '—', price: Number.isFinite(pl) ? fmt(pl) : '—', chg: Number.isFinite(chg) ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—', up: !(chg < 0) };
+    }));
+
+    rowsTable('ok', signals); sparksDraw(signals); if (signals[0]) detail(signals[0]);
+    notice('ok', `<b class="text-[var(--green)]">اتصال برقرار شد — داده زنده دریافت شد.</b> آخرین واکشی: <span class="mono" dir="ltr">${tFa.format(new Date())}</span> (به وقت تهران) · ${W.length} نماد · ${v1 + v2 + v3} وتو<span id="retry-in" class="text-[var(--faint)]"></span>`);
+
+    LST.payload = {
+      generated_at: new Date().toISOString(),
+      source: 'https://cdn.tsetmc.com — live browser fetch',
+      count: signals.length, signals,
+    };
+    jsonRender(LST.payload);
+    scheduleRetry(60, 'بروزرسانی خودکار');
+  } catch (err) {
+    const reason = err && err.name === 'AbortError' ? 'پایان مهلت زمانی (timeout)'
+      : /fetch|network|Failed|CORS/i.test(String(err && err.message)) ? 'خطای CORS/شبکه — مرورگر اجازه دسترسی مستقیم به cdn.tsetmc.com را نداد'
+      : String((err && err.message) || 'خطای ناشناخته');
+    termLog('ERROR', 'عدم دریافت اطلاعات: ' + reason);
+    setStats(null); setVetoBadges(null); setTicker('fail'); rowsTable('dash'); detailNone('fail', reason);
+    $('#scan-meta').textContent = '— عدم دریافت اطلاعات';
+    notice('fail', `<b class="text-[var(--red)]">عدم دریافت اطلاعات از cdn.tsetmc.com.</b> دلیل: ${esc(reason)}. خانه‌های جدول با «—» نمایش داده می‌شوند.<span id="retry-in" class="text-[var(--faint)]"></span><button id="nt-retry" class="mr-2 inline-flex items-center gap-1 text-[var(--red)] border border-[rgba(255,84,112,.4)] rounded-lg px-2.5 py-1 font-bold hover:bg-[rgba(255,84,112,.1)] transition-colors"><i data-lucide="rotate-cw" style="width:11px;height:11px"></i>تلاش مجدد</button>`);
+    jsonRender(null, reason);
+    scheduleRetry(30, 'تلاش مجدد خودکار');
+    refreshIcons();
+  } finally {
+    LST.busy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="rotate-cw" style="width:12px;height:12px"></i><span>واکشی مجدد</span>'; refreshIcons(); }
+  }
+}
+
+/* — اتصال رویدادها و بوت — */
+(function liveBoot() {
+  const btn = $('#live-btn'); if (btn) btn.addEventListener('click', () => runScan(true));
+  $('#signal-rows')?.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-r]'); if (!tr) return;
+    document.querySelectorAll('#signal-rows tr').forEach(r => r.classList.remove('active'));
+    tr.classList.add('active');
+    const row = LST.rows[+tr.dataset.r]; if (row) detail(row);
+  });
+  $('#detail-panel')?.addEventListener('click', e => { if (e.target.closest('#dp-retry')) runScan(true); });
+  $('#live-notice')?.addEventListener('click', e => { if (e.target.closest('#nt-retry')) runScan(true); });
+  $('#json-dl')?.addEventListener('click', () => {
+    if (!LST.payload) return;
+    const blob = new Blob([JSON.stringify(LST.payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'signals.json'; a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  runScan(false);
+})();
+
+/* ═══════════════ نوار تیکر ═══════════════ */
+/* (تیکر توسط هسته زنده مدیریت می‌شود) */
+
+/* ═══════════════ جدول سیگنال‌ها ═══════════════ */
+/* (جدول، کلیک ردیف‌ها و اسپارک‌لاین‌ها توسط هسته زنده رندر می‌شوند) */
+
+/* (پنل جزئیات توسط هسته زنده رندر می‌شود) */
 
 /* ═══════════════ بوم هیرو (کندل‌ها) ═══════════════ */
 (function heroCanvas(){
@@ -1459,66 +1742,11 @@ let currentCode='';
   load(CODE_FILES[0].id, CODE_FILES[0].name);
 })();
 
-/* ═══════════════ خروجی ترمینال ═══════════════ */
-(function terminal(){
-  const g='style="color:#16e08c"', r='style="color:#ff5470"', m='style="color:#5d6c87"',
-        c='style="color:#5ecbff"', y='style="color:#ffc14d"', w='style="color:#e9eff9"';
-  const cell=(txt,width,color='')=>`<span class="col-cell" style="width:${width}px" ${color}>${txt}</span>`;
-  let rows=STOCKS.map((s,i)=>{
-    const chgCol=s.chgF>0?g:r;
-    const dots=s.tech.map(v=>`<span style="color:${v===1?'#16e08c':(v===-1?'#ff5470':'#3a4763')}">●</span>`).join(' ');
-    return cell(String(i+1).padStart(2,' '),26,m)+
-           cell(s.sym,96,w)+cell(s.price,86,c)+
-           cell(s.chg+'%',76,chgCol)+cell(s.sarane,78,`dir="ltr"`&&'')+
-           cell('×'+s.power.toFixed(2),64,'')+cell('×'+s.shock.toFixed(1),54,g)+
-           `<span class="col-cell" style="width:88px">${dots}</span>`+
-           cell(s.score.toFixed(1),58,y)+
-           cell(HZ[s.hz].fa,84,g)+cell(s.stop,70,r);
-  }).join('\n');
-  $('#term-body').innerHTML=`
-<span ${m}>$</span> <span ${w}>python main.py --once</span>
-<span ${m}>[12:25:04]</span> <span ${c}>INFO </span> اتصال به cdn.tsetmc.com … دریافت دیده‌بان × جریان نقدینگی
-<span ${m}>[12:25:05]</span> <span ${c}>INFO </span> snapshot: <span ${w}>730</span> نماد مشترک روی insCode — کش Parquet: <span ${w}>41</span> hit
-<span ${m}>[12:25:06]</span> <span ${c}>INFO </span> فیلترهای وتو: <span ${r}>41</span> نماد حذف شد <span ${m}>(۱۸ نقدشوندگی · ۱۴ حجم مبنا · ۹ صف فروش)</span>
-<span ${m}>[12:25:06]</span> <span ${c}>INFO </span> پایپ‌لاین کامل در <span ${g}>1.834</span> ثانیه
-<span ${m}>╭─────────────────────</span> <span ${w}>۱۰ سیگنال برتر — تابلورادار</span> <span ${m}>─────────────────────╮</span>
-${cell('#',26,m)}${cell('نماد',96,m)}${cell('آخرین',86,m)}${cell('Δ%',76,m)}${cell('سرانه',78,m)}${cell('قدرت',64,m)}${cell('xVol',54,m)}${cell('ک / م / ب',88,m)}${cell('امتیاز',58,m)}${cell('افق',84,m)}${cell('حدضرر',70,m)}
-<span ${m}>─────────────────────────────────────────────────────────────────────────────────────────────────────────</span>
-${rows}
-<span ${m}>╰────────────────────────────</span> <span ${g}>ذخیره شد ← signals.json</span> <span ${m}>────────────────────────────┘</span>
-<span ${g}>quant@tsetmc</span><span ${m}>:</span><span ${c}>~$</span> <span class="caret"></span>`;
-})();
+/* (لاگ ترمینال توسط هسته زنده نوشته می‌شود) */
 
-/* ═══════════════ خروجی JSON ═══════════════ */
-(function jsonView(){
-  const K='<span class="j-key">',S='<span class="j-str">',N='<span class="j-num">',P='<span class="j-punc">',E='</span>';
-  const rec=s=>`  ${P}{${E}
-    ${K}"rank"${E}${P}:${E} ${N}${STOCKS.indexOf(s)+1}${E}${P},${E}
-    ${K}"symbol"${E}${P}:${E} ${S}"${s.sym}"${E}${P},${E}
-    ${K}"company"${E}${P}:${E} ${S}"${s.name}"${E}${P},${E}
-    ${K}"last_price"${E}${P}:${E} ${N}${s.price.replace(',','')}${E}${P},${E}
-    ${K}"change_pct"${E}${P}:${E} ${N}${s.chg}${E}${P},${E}
-    ${K}"sarane_buy_mtm"${E}${P}:${E} ${N}${s.sarane.replace(',','')}${E}${P},${E}
-    ${K}"power_ratio"${E}${P}:${E} ${N}${s.power.toFixed(2)}${E}${P},${E}
-    ${K}"volume_shock"${E}${P}:${E} ${N}${s.shock.toFixed(1)}${E}${P},${E}
-    ${K}"score_total"${E}${P}:${E} ${N}${s.score.toFixed(1)}${E}${P},${E}
-    ${K}"horizon"${E}${P}:${E} ${S}"${HZ[s.hz].fa}"${E}${P},${E}
-    ${K}"stop_loss"${E}${P}:${E} ${N}${s.stop.replace(',','')}${E}
-  ${P}}${E}${STOCKS.indexOf(s)<2?P+','+E:''}`;
-  $('#json-body').innerHTML=`${P}{${E}
-  ${K}"generated_at"${E}${P}:${E} ${S}"2025-11-05T12:25:06+03:30"${E}${P},${E}
-  ${K}"signal_time"${E}${P}:${E} ${S}"12:25"${E}${P},${E}
-  ${K}"engine"${E}${P}:${E} ${S}"tablo-radar v2.1"${E}${P},${E}
-  ${K}"weights"${E}${P}:${E} ${P}{${E} ${K}"tablokhani"${E}${P}:${E} ${N}0.35${E}${P},${E} ${K}"short"${E}${P}:${E} ${N}0.25${E}${P},${E} ${K}"mid"${E}${P}:${E} ${N}0.25${E}${P},${E} ${K}"long"${E}${P}:${E} ${N}0.15${E} ${P}}${E}${P},${E}
-  ${K}"count"${E}${P}:${E} ${N}10${E}${P},${E}
-  ${K}"signals"${E}${P}:${E} ${P}[${E}
-${rec(STOCKS[0])}
-${rec(STOCKS[1])}
-${rec(STOCKS[2])}
-  <span class="j-punc">… ۷ رکورد دیگر …</span>
-  ${P}]${E}
-${P}}${E}`;
-})();
+/* (خروجی JSON توسط هسته زنده رندر می‌شود) */
+
+/* (هندلر اتصال زنده در هسته زنده تعریف شده است) */
 
 refreshIcons();
 </script>
