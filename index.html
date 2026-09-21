@@ -4,8 +4,19 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>تابلورادار — سامانه کمی سیگنال‌دهی بورس تهران</title>
-<meta name="description" content="موتور پایتونی اسکن، تابلوخوانی و رتبه‌بندی بیش از ۷۳۰ نماد بورس اوراق بهادار تهران در کمتر از دو ثانیه — مستقیماً از CDN رسمی TSETMC." />
+<meta name="description" content="موتور پایتونی اسکن، تابلوخوانی و رتبه‌بندی بیش از ۷۳۰ نماد بورس اوراق بهادار تهران در کمتر از دو ثانیه — مستقیماً از BrsApi (مبتنی بر CDN رسمی TSETMC) با متدولوژی tablokhani.com." />
+<meta name="theme-color" content="#04070d" />
+<meta property="og:type" content="website" />
+<meta property="og:locale" content="fa_IR" />
+<meta property="og:title" content="تابلورادار — سامانه کمی سیگنال‌دهی بورس تهران" />
+<meta property="og:description" content="ده سیگنال برتر بازار در کمتر از ۲ ثانیه؛ ترکیب تابلوخوانی، پول هوشمند و تکنیکال چندبازه (RSI/EMA/MACD/SMA) + فیلترهای وتو." />
+<meta property="og:image" content="https://tabloradar.ir/og-cover.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="تابلورادار — سامانه کمی سیگنال‌دهی بورس تهران" />
+<meta name="twitter:description" content="اسکن برداری بازار با Python 3.11 — بدون فریم‌ورک — خروجی rich و signals.json" />
+<link rel="canonical" href="https://tabloradar.ir/" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23071018'/><circle cx='16' cy='16' r='11.5' fill='none' stroke='%2316e08c' stroke-width='2'/><circle cx='21.5' cy='10.5' r='3' fill='%2316e08c'/></svg>" />
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"TabloRadar","inLanguage":"fa-IR","applicationCategory":"FinanceApplication","operatingSystem":"Web","description":"سامانه کمی اسکن و رتبه‌بندی نمادهای بورس تهران با Python 3.11","offers":{"@type":"Offer","price":"0","priceCurrency":"IRR"}}</script>
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
@@ -24,6 +35,7 @@
     --rad:18px;
   }
   *{ -webkit-tap-highlight-color:transparent; }
+  :focus-visible{ outline:2px solid var(--green); outline-offset:2px; border-radius:6px; }
   html{ scroll-behavior:smooth; }
   body{
     background:var(--bg0); color:var(--ink);
@@ -120,7 +132,7 @@
   .tdot.neutral{ background:var(--cyan); border-color:var(--cyan); box-shadow:0 0 6px rgba(76,201,255,.5); }
   .tdot.bear{ background:rgba(255,84,112,.9); border-color:var(--red); }
   .tech-card{ background:rgba(255,255,255,.025); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
-  .score-badge{ font-family:var(--mono); font-weight:700; font-size:13px; padding:4px 10px; border-radius:9px; }
+  .score-badge{ font-family:var(--mono); font-weight:700; font-size:13px; padding:4px 10px; border-radius:9px; transition:transform .2s; } .score-badge:hover{ transform:scale(1.06); }
   .score-a{ color:var(--green); background:rgba(22,224,140,.13); border:1px solid rgba(22,224,140,.35); }
   .score-b{ color:#9ee9c8; background:rgba(22,224,140,.07); border:1px solid rgba(22,224,140,.2); }
   .hchip{ font-size:11px; padding:4px 10px; border-radius:99px; border:1px solid; display:inline-flex; align-items:center; gap:5px; }
@@ -256,8 +268,8 @@
       <span class="grad-text">در ۱.۸۳ ثانیه.</span>
     </h1>
     <p class="reveal max-w-2xl mx-auto mt-7 text-[16px] leading-8 text-[var(--muted)]" style="transition-delay:.16s">
-      موتور پایتونی تابلوخوانی که <b class="text-[var(--ink)]">دیده‌بان کامل بازار</b>، <b class="text-[var(--ink)]">جریان نقدینگی حقیقی–حقوقی</b> و <b class="text-[var(--ink)]">مظنه‌های ۵ سطحی</b> را زنده از سرویس
-      <span class="mono text-[var(--cyan)] text-[14px]" dir="ltr">Api.BrsApi.ir</span> (دیتای رسمی TSETMC) دریافت می‌کند، با تاریخچه روزانه، کندل‌های تکنیکال چندبازه را محاسبه کرده و بر پایه متدولوژی
+      موتور پایتونی تابلوخوانی که <b class="text-[var(--ink)]">دیده‌بان کامل بازار</b>، <b class="text-[var(--ink)]">جریان نقدینگی حقیقی–حقوقی</b> و <b class="text-[var(--ink)]">مظنه‌های ۵ سطحی</b> را زنده از
+      <span class="mono text-[var(--cyan)] text-[14px]" dir="ltr">Api.BrsApi.ir</span> (مبتنی بر CDN رسمی TSETMC) دریافت می‌کند، با تاریخچه ۲۴۰کندلی و اندیکاتورهای چندبازه، و بر پایه متدولوژی
       <a href="https://tablokhani.com/" target="_blank" rel="noopener" class="mono text-[var(--violet)] text-[14px]" dir="ltr">tablokhani.com</a>،
       <b class="text-[var(--ink)]">۱۰ نماد برتر</b> را رتبه‌بندی و معرفی می‌کند.
     </p>
@@ -274,11 +286,11 @@
 
     <div class="reveal grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 max-w-3xl mx-auto" style="transition-delay:.32s">
       <div class="glass stat-big p-5">
-        <div class="num grad-text" dir="ltr" id="st-scan">—</div>
+        <div class="num grad-text" dir="ltr" id="st-scan" aria-live="polite">—</div>
         <div class="text-[12px] text-[var(--faint)] mt-2">نماد اسکن‌شده</div>
       </div>
       <div class="glass stat-big p-5">
-        <div class="num text-[var(--ink)]" dir="ltr" id="st-time">—</div>
+        <div class="num text-[var(--ink)]" dir="ltr" id="st-time" aria-live="polite">—</div>
         <div class="text-[12px] text-[var(--faint)] mt-2">زمان واکشی</div>
       </div>
       <div class="glass stat-big p-5">
@@ -319,7 +331,7 @@
       <div class="flex items-center gap-3 flex-wrap">
         <span class="hchip h-short mono" dir="ltr"><i data-lucide="key-round" style="width:11px;height:11px"></i>source: Api.BrsApi.ir</span>
         <a href="https://tablokhani.com/" target="_blank" rel="noopener" class="hchip h-long"><i data-lucide="eye" style="width:11px;height:11px"></i>متدولوژی: tablokhani.com</a>
-        <span class="hchip h-mid mono" dir="ltr">Retry ×3 + Backoff</span>
+        <span class="hchip h-mid" title="تلاش مجدد با وقفه نمایی در صورت خطای شبکه">تلاش مجدد ×۳ + وقفه نمایی</span>
       </div>
     </div>
 
@@ -338,14 +350,16 @@
             </button>
           </div>
         </div>
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto relative" style="scrollbar-width:thin">
+          <div class="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-[var(--panel)] to-transparent md:hidden"></div>
+          <div class="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[var(--panel)] to-transparent md:hidden"></div>
           <table class="dtable">
             <thead>
               <tr>
-                <th>#</th><th>نماد</th><th>آخرین معامله <span class="text-[10px]">(تومان)</span></th>
-                <th>تغییر٪</th><th>سرانه خرید <span class="text-[10px]">(م.ت)</span></th>
-                <th>قدرت خ/ف</th><th>حجم مشکوک</th>
-                <th class="hidden md:table-cell">روند ۳۰روزه</th><th>تکنیکال <span class="text-[10px] text-[var(--faint)]">(ک/م/ب)</span></th><th>امتیاز کل</th><th>افق پیشنهادی</th>
+                <th>#</th><th>نماد</th><th>آخرین معامله <span class="text-[10px]">(ریال)</span></th>
+                <th>تغییر٪</th><th>سرانه خرید <span class="text-[10px]">(م. ریال)</span></th>
+                <th title="نسبت سرانه خرید حقیقی به فروش حقیقی">قدرت خریدار</th><th title="نسبت حجم امروز به میانگین ۳۰روزه">حجم مشکوک</th>
+                <th class="hidden md:table-cell">روند ۳۰روزه</th><th title="کوتاه‌مدت / میان‌مدت / بلندمدت">تکنیکال <span class="text-[10px] text-[var(--faint)]">(ک/م/ب)</span></th><th>امتیاز کل</th><th>افق پیشنهادی</th>
               </tr>
             </thead>
             <tbody id="signal-rows"></tbody>
@@ -354,7 +368,7 @@
         <div id="live-notice"></div>
         <div class="px-5 py-3.5 flex items-center gap-2 text-[12px] text-[var(--faint)] border-t border-[var(--line)]">
           <i data-lucide="mouse-pointer-click" style="width:13px;height:13px"></i>
-          روی هر ردیف کلیک کنید تا بازشکافی امتیاز نمایش داده شود.
+          <span class="flex items-center gap-2">روی هر ردیف کلیک کنید تا کالبدشکافی امتیاز نمایش داده شود.<span class="hidden md:inline-flex items-center gap-1.5 mr-4 text-[10px]"> <i class="tdot bull"></i> صعودی <i class="tdot neutral mr-2"></i> خنثی/تایید</span></span>
         </div>
       </div>
 
@@ -385,16 +399,20 @@
     <div class="grid lg:grid-cols-[340px_1fr] gap-8 mt-14 items-center">
       <!-- دونات وزن -->
       <div class="reveal flex flex-col items-center">
-        <svg viewBox="0 0 42 42" class="w-[300px] h-[300px]" style="filter:drop-shadow(0 0 24px rgba(22,224,140,.15))">
+        <svg viewBox="0 0 42 42" class="w-[300px] h-[300px]" style="filter:drop-shadow(0 0 24px rgba(22,224,140,.15))" role="img" aria-label="نمودار وزن‌دهی: تابلوخوانی ۳۵٪، کوتاه‌مدت ۲۵٪، میان‌مدت ۲۵٪، بلندمدت ۱۵٪">
           <circle cx="21" cy="21" r="15.9155" fill="none" stroke="rgba(148,163,184,.08)" stroke-width="4.6"/>
-          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--green)"  stroke-width="4.6" stroke-linecap="butt"
-                  stroke-dasharray="33.6 66.4" stroke-dashoffset="26.25" class="dseg" transform="rotate(0 21 21)"/>
-          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--cyan)"   stroke-width="4.6"
-                  stroke-dasharray="23.6 76.4" stroke-dashoffset="-8.75" class="dseg"/>
-          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--violet)" stroke-width="4.6"
-                  stroke-dasharray="23.6 76.4" stroke-dashoffset="-33.75" class="dseg"/>
-          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--amber)"  stroke-width="4.6"
-                  stroke-dasharray="13.6 86.4" stroke-dashoffset="-58.75" class="dseg"/>
+          <!-- 35% تابلوخوانی -->
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--green)"  stroke-width="4.6" stroke-linecap="round"
+                  stroke-dasharray="35 65" stroke-dashoffset="25" class="dseg"/>
+          <!-- 25% کوتاه‌مدت -->
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--cyan)"   stroke-width="4.6" stroke-linecap="round"
+                  stroke-dasharray="25 75" stroke-dashoffset="-10" class="dseg"/>
+          <!-- 25% میان‌مدت -->
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--violet)" stroke-width="4.6" stroke-linecap="round"
+                  stroke-dasharray="25 75" stroke-dashoffset="-35" class="dseg"/>
+          <!-- 15% بلندمدت -->
+          <circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--amber)"  stroke-width="4.6" stroke-linecap="round"
+                  stroke-dasharray="15 85" stroke-dashoffset="-60" class="dseg"/>
           <text x="21" y="20.4" text-anchor="middle" fill="var(--ink)" font-family="JetBrains Mono" font-weight="800" font-size="6.4">100</text>
           <text x="21" y="26.2" text-anchor="middle" fill="var(--faint)" font-size="2.6">ΣW = 1.00</text>
         </svg>
@@ -415,7 +433,7 @@
                 <i data-lucide="eye" class="text-[var(--green)]" style="width:18px;height:18px"></i></span>
               <b class="text-[15.5px]">تابلوخوانی و پول هوشمند</b>
             </div>
-            <span class="mono text-[12px] text-[var(--green)]" dir="ltr">w=.35</span>
+            <span class="mono text-[12px] text-[var(--green)]" dir="ltr">وزن ۳۵٪</span>
           </div>
           <ul class="mt-4 space-y-2 text-[13px] text-[var(--muted)] leading-6">
             <li class="flex gap-2"><span class="text-[var(--green)] mono" dir="ltr">·</span>سرانه خرید در برابر سرانه فروش حقیقی</li>
@@ -431,7 +449,7 @@
                 <i data-lucide="zap" class="text-[var(--cyan)]" style="width:18px;height:18px"></i></span>
               <b class="text-[15.5px]">افق کوتاه‌مدت</b>
             </div>
-            <span class="mono text-[12px] text-[var(--cyan)]" dir="ltr">w=.25</span>
+            <span class="mono text-[12px] text-[var(--cyan)]" dir="ltr">وزن ۲۵٪</span>
           </div>
           <ul class="mt-4 space-y-2 text-[13px] text-[var(--muted)] leading-6">
             <li class="flex gap-2"><span class="text-[var(--cyan)]">·</span><span dir="ltr" class="mono text-[11.5px] mt-0.5">RSI(14) &gt; 45</span> یا خروج از اشباع فروش</li>
@@ -446,7 +464,7 @@
                 <i data-lucide="trending-up" class="text-[var(--violet)]" style="width:18px;height:18px"></i></span>
               <b class="text-[15.5px]">افق میان‌مدت</b>
             </div>
-            <span class="mono text-[12px] text-[var(--violet)]" dir="ltr">w=.25</span>
+            <span class="mono text-[12px] text-[var(--violet)]" dir="ltr">وزن ۲۵٪</span>
           </div>
           <ul class="mt-4 space-y-2 text-[13px] text-[var(--muted)] leading-6">
             <li class="flex gap-2"><span class="text-[var(--violet)]">·</span>کراس صعودی <span class="mono text-[11.5px]" dir="ltr">SMA(20)↑SMA(50)</span></li>
@@ -461,7 +479,7 @@
                 <i data-lucide="layers" class="text-[var(--amber)]" style="width:18px;height:18px"></i></span>
               <b class="text-[15.5px]">افق بلندمدت</b>
             </div>
-            <span class="mono text-[12px] text-[var(--amber)]" dir="ltr">w=.15</span>
+            <span class="mono text-[12px] text-[var(--amber)]" dir="ltr">وزن ۱۵٪</span>
           </div>
           <ul class="mt-4 space-y-2 text-[13px] text-[var(--muted)] leading-6">
             <li class="flex gap-2"><span class="text-[var(--amber)]">·</span>تثبیت قیمت بالای <span class="mono text-[11.5px]" dir="ltr">SMA(200)</span></li>
@@ -485,7 +503,7 @@
               <i data-lucide="coins" class="text-[var(--red)]" style="width:18px;height:18px"></i></span>
             <b>ارزش معاملات ناکافی</b>
           </div>
-          <p class="mono text-[12px] text-[var(--muted)] mt-4" dir="ltr">qTotTran5J &lt; 50,000,000,000 R</p>
+          <p class="mono text-[12px] text-[var(--muted)] mt-4" dir="ltr">qTotTran5J &lt; ۵۰٬۰۰۰٬۰۰۰٬۰۰۰ ریال</p>
           <p class="text-[13px] text-[var(--muted)] mt-2 leading-6">ریسک نقدشوندگی؛ خروج سخت از پوزیشن در بازار پرتلاطم.</p>
           <span class="inline-block mt-4 text-[12px] mono text-[var(--red)]" dir="ltr" data-vk="liq">—</span>
         </div>
@@ -530,9 +548,9 @@
           <span class="absolute top-4 left-4 mono text-[11px] text-[var(--faint)]" dir="ltr">01</span>
           <span class="grid place-items-center w-11 h-11 rounded-xl mb-4" style="background:rgba(76,201,255,.09);border:1px solid rgba(76,201,255,.3)">
             <i data-lucide="satellite-dish" class="text-[var(--cyan)]" style="width:20px;height:20px"></i></span>
-          <b class="text-[14.5px]">اتصال به CDN بورس</b>
-          <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">data_provider.py</p>
-          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">کلاینت <span class="mono" style="font-size:11px" dir="ltr">httpx</span> با هدر مرورگر واقعی، تایم‌اوت ۱۰‌ثانیه و ۴ تلاش مجدد با پس‌روی نمایی.</p>
+          <b class="text-[14.5px]">اتصال به BrsApi</b>
+          <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">data_provider.py → Api.BrsApi.ir</p>
+          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">کلاینت <span class="mono" style="font-size:11px" dir="ltr">httpx</span> با هدر مرورگر واقعی، تایم‌اوت ۱۰ثانیه و ۴ تلاش مجدد با وقفه نمایی.</p>
         </div>
         <span class="pconn hidden lg:block" style="right:-15px"></span>
       </div>
@@ -543,7 +561,7 @@
             <i data-lucide="eye" class="text-[var(--green)]" style="width:20px;height:20px"></i></span>
           <b class="text-[14.5px]">تابلوخوانی برداری</b>
           <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">tablokhani.py</p>
-          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">سرانه، قدرت خریدار، حجم مشکوک، عدم تعادل صف و تیک آخرین ساعت — پاندا-برداری روی کل بازار.</p>
+          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">سرانه، قدرت خریدار، حجم مشکوک، عدم تعادل صف و تیک آخرین ساعت — پردازش برداری با Pandas روی کل بازار.</p>
         </div>
         <span class="pconn hidden lg:block" style="right:-15px"></span>
       </div>
@@ -565,7 +583,7 @@
             <i data-lucide="gauge" class="text-[var(--amber)]" style="width:20px;height:20px"></i></span>
           <b class="text-[14.5px]">امتیازدهی + وتو</b>
           <p class="mono text-[10.5px] text-[var(--faint)] mt-1" dir="ltr">scoring_engine.py</p>
-          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">نگشت نرم به زیرامتیاز، ترکیب وزنی، اعمال ماسک‌های وتو و استخراج <span class="mono" dir="ltr">nlargest(10)</span>.</p>
+          <p class="text-[12.5px] text-[var(--muted)] mt-3 leading-6">نگاشت نرم سیگموئید به زیرامتیاز، ترکیب وزنی، اعمال ماسک‌های وتو و استخراج <span class="mono" dir="ltr">nlargest(10)</span>.</p>
         </div>
         <span class="pconn hidden lg:block" style="right:-15px"></span>
       </div>
@@ -590,7 +608,7 @@
       <span class="eyebrow"><i data-lucide="terminal" style="width:13px;height:13px"></i> کد منبع پروژه</span>
       <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">هفت ماژول. <span class="grad-text">صفر فریم‌ورک.</span></h2>
       <p class="text-[var(--muted)] mt-4 text-[14.5px] leading-7">
-        معماری کامل سامانه با پایتون 3.10+ — آماده اجرا. روی هر تب کلیک کنید و با یک کلیک کپی بگیرید.
+        معماری کامل سامانه با پایتون 3.11 — آماده اجرا. روی هر تب کلیک کنید و با یک کلیک کپی بگیرید.
       </p>
     </div>
 
@@ -602,7 +620,8 @@
           <i class="w-3 h-3 rounded-full" style="background:#28c840"></i>
         </span>
         <span class="mono text-[11.5px] text-[var(--faint)]" id="code-title">tse-signal-scanner / config.py</span>
-        <button id="copy-btn" class="mr-auto flex items-center gap-1.5 text-[11.5px] mono text-[var(--faint)] hover:text-[var(--green)] transition-colors border border-[var(--line)] rounded-lg px-3 py-1.5" style="direction:rtl">
+        <span class="mono text-[10px] text-[var(--faint)] border border-[var(--line)] rounded-md px-1.5 py-0.5 hidden sm:inline">Python 3.11</span>
+        <button id="copy-btn" class="mr-auto flex items-center gap-1.5 text-[11.5px] mono text-[var(--faint)] hover:text-[var(--green)] transition-colors border border-[var(--line)] rounded-lg px-3 py-1.5" style="direction:ltr">
           <i data-lucide="copy" style="width:13px;height:13px"></i><span id="copy-label">کپی</span>
         </button>
       </div>
@@ -616,6 +635,7 @@
     <div class="reveal flex flex-wrap items-center gap-3 mt-6 justify-center text-[12.5px]">
       <span class="text-[var(--faint)]">نصب و اجرا:</span>
       <code class="mono text-[11.5px] px-3.5 py-2 rounded-lg border border-[var(--line)] bg-[rgba(255,255,255,.03)] text-[var(--muted)]" dir="ltr">pip install httpx pandas pyarrow rich</code>
+      <span class="text-[var(--faint)] text-[11px]">نیازمند Python 3.11+</span>
       <i data-lucide="arrow-left" class="text-[var(--faint)]" style="width:14px;height:14px"></i>
       <code class="mono text-[11.5px] px-3.5 py-2 rounded-lg border border-[rgba(22,224,140,.3)] bg-[rgba(22,224,140,.06)] text-[var(--green)]" dir="ltr">python main.py --loop</code>
     </div>
@@ -628,7 +648,7 @@
     <div class="reveal text-center max-w-2xl mx-auto">
       <span class="eyebrow"><i data-lucide="square-terminal" style="width:13px;height:13px"></i> خروجی تحویلی</span>
       <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">ترمینال <span class="mono grad-text" dir="ltr">rich</span> و فایل <span class="mono grad-text" dir="ltr">signals.json</span></h2>
-      <p class="text-[var(--muted)] mt-4 text-[14.5px]">لاگ زنده ارتباط با سرویس BrsApi (دیتای رسمی TSETMC) و فایل JSON واقعیِ تولیدشده از واکشی — فقط در صورت موفقیت‌آمیز بودن اتصال.</p>
+      <p class="text-[var(--muted)] mt-4 text-[14.5px]">لاگ زنده ارتباط با BrsApi (مبتنی بر CDN رسمی TSETMC) و فایل <span class="mono" dir="ltr">signals.json</span> تولیدشده — فقط پس از واکشی موفق.</p>
     </div>
 
     <div class="grid lg:grid-cols-2 gap-6 mt-12 items-start">
@@ -670,14 +690,14 @@
       </div>
     </div>
     <div class="flex items-center gap-2 flex-wrap justify-center text-[11px] mono text-[var(--faint)]" dir="ltr">
-      <span class="border border-[var(--line)] rounded-md px-2 py-1">python 3.10+</span>
+      <span class="border border-[var(--line)] rounded-md px-2 py-1">python 3.11</span>
       <span class="border border-[var(--line)] rounded-md px-2 py-1">httpx</span>
       <span class="border border-[var(--line)] rounded-md px-2 py-1">pandas</span>
       <span class="border border-[var(--line)] rounded-md px-2 py-1">pyarrow</span>
       <span class="border border-[var(--line)] rounded-md px-2 py-1">rich</span>
     </div>
-    <p class="text-[11.5px] text-[var(--faint)] max-w-sm text-center md:text-left leading-5">
-      این سامانه صرفاً ابزار تحلیل داده است و توصیه سرمایه‌گذاری محسوب نمی‌شود. مسئولیت تصمیمات معاملاتی بر عهده کاربر است.
+    <p class="text-[11.5px] text-[var(--faint)] max-w-sm text-center md:text-left leading-5" title="کلیه قیمت‌ها به ریال نمایش داده می‌شود (۱ تومان = ۱۰ ریال)">
+      این سامانه صرفاً ابزار تحلیل داده است و توصیه سرمایه‌گذاری محسوب نمی‌شود. مسئولیت تصمیمات معاملاتی بر عهده کاربر است. <span class="text-[10px] mono">قیمت‌ها: ریال</span>
     </p>
   </div>
 </footer>
@@ -689,8 +709,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# ── اندپوینت‌های رسمی CDN بورس اوراق بهادار تهران ─────────────────
+# ── اندپوینت‌های داده بازار ─────────────────────────────────────
+# منبع اصلی: CDN رسمی TSETMC (cdn.tsetmc.com) — در کلاینت مرورگر از
+# پراکسی BrsApi.ir استفاده می‌شود تا محدودیت CORS دور زده شود.
 CDN_BASE = "https://cdn.tsetmc.com/api"
+BRS_API_BASE = "https://Api.BrsApi.ir/Tsetmc"
+BRS_API_KEY = "BBU9LxypHJC4Anr9xq8uTu35E4hb99m3"  # کلید نمونه؛ در محیط تولید از env بخوانید
 
 MARKET_WATCH_URL: str = (
     f"{CDN_BASE}/ClosingPrice/GetMarketWatch"
@@ -699,10 +723,14 @@ MARKET_WATCH_URL: str = (
     "&paperTypes[4]=5&paperTypes[5]=6&paperTypes[6]=7&paperTypes[7]=8"
     "&paperTypes[8]=9&withBestLimits=false&hEven=0&RefID=0"
 )
+# نسخه مرورگری (BrsApi) — AllSymbols.php?type=1 معادل MarketWatch است
+BRS_MARKET_WATCH_URL: str = f"{BRS_API_BASE}/AllSymbols.php?key={BRS_API_KEY}&type=1"
+
 CLIENT_TYPE_URL: str = f"{CDN_BASE}/ClientType/GetClientTypeAll"
 INSTRUMENT_HISTORY_URL: str = (
     CDN_BASE + "/ClosingPrice/GetClosingPriceInfoHistory/{ins_code}"
 )
+BRS_HISTORY_URL: str = BRS_API_BASE + "/History.php?key={key}&type=0&l18={symbol}"
 
 # ── سرآیند مرورگر جهت عبور از مکانیزم‌های مسدودسازی ───────────────
 BROWSER_HEADERS: dict[str, str] = {
@@ -754,7 +782,7 @@ VETO = VetoThresholds()
 SIGNAL_TIME: str = "12:25"
 </script>
 
-<script type="text/x-python" id="py-provider">"""data_provider.py — کلاینت شبکه و لایه دسترسی به داده‌های TSETMC."""
+<script type="text/x-python" id="py-provider">"""data_provider.py — کلاینت شبکه و لایه دسترسی به داده‌های TSETMC / BrsApi."""
 from __future__ import annotations
 
 import logging
@@ -1184,7 +1212,7 @@ const CODE_FILES = [
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-function scoreCls(v){ return v>=85 ? 'score-a' : 'score-b'; }
+function scoreCls(v){ return v>=85 ? 'score-a' : (v>=70 ? 'score-b' : 'score-b'); }
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 
 /* ═══════════════ هسته زنده — BrsApi (TSETMC) + tablokhani.com ═══════════════ */
@@ -1523,7 +1551,7 @@ function setStats(s) {
 }
 function setVetoBadges(o) {
   document.querySelectorAll('[data-vk]').forEach(el => {
-    el.textContent = o && Number.isFinite(o[el.dataset.vk]) ? `✕ ${o[el.dataset.vk]} symbols vetoed` : '—';
+    el.textContent = o && Number.isFinite(o[el.dataset.vk]) ? `✕ ${o[el.dataset.vk]} نماد وتو شد` : '—';
   });
 }
 function setTicker(mode, items) {
@@ -1556,8 +1584,8 @@ function rowsTable(mode, list) {
     const chgT = Number.isFinite(s.chg) ? `<span class="mono ${chgC}" dir="ltr">${s.chg >= 0 ? '+' : ''}${s.chg.toFixed(2)}%</span>` : DASH;
     const labels = ['کوتاه‌مدت', 'میان‌مدت', 'بلندمدت'];
     const dots = s.tech.map((v, idx) => `<span class="tdot ${v === 1 ? 'bull' : 'neutral'}" title="${labels[idx]}: ${v === 1 ? 'صعودی و پرقدرت' : 'تایید / خنثی'}"></span>`).join('<span class="inline-block w-1.5"></span>');
-    const sc = Number.isFinite(s.score) ? `<span class="score-badge ${scoreCls(s.score)}" dir="ltr">${s.score.toFixed(1)}</span>` : DASH;
-    const hzH = h ? `<div class="flex flex-col gap-1.5"><span class="hchip ${h.cls}"><i data-lucide="${h.icon}" style="width:11px;height:11px"></i>${h.fa}</span><div class="flex items-center gap-2">${Number.isFinite(s.stop) ? `<span class="mono text-[10px] text-[var(--faint)]" dir="ltr">SL ${fmt(s.stop)}</span>` : ''}<a href="${s.tb || TB.watch}" target="_blank" rel="noopener" class="mono text-[10px] inline-flex items-center gap-0.5 text-[var(--violet)] hover:text-[var(--ink)] transition-colors" dir="ltr">tablokhani<i data-lucide="external-link" style="width:9px;height:9px"></i></a></div></div>` : DASH;
+    const sc = Number.isFinite(s.score) ? `<span class="score-badge ${scoreCls(s.score)}" dir="ltr" title="امتیاز جامع ۰ تا ۱۰۰">${s.score.toFixed(1)}</span>` : DASH;
+    const hzH = h ? `<div class="flex flex-col gap-1.5"><span class="hchip ${h.cls}"><i data-lucide="${h.icon}" style="width:11px;height:11px"></i>${h.fa}</span><div class="flex items-center gap-2">${Number.isFinite(s.stop) ? `<span class="mono text-[10px] text-[var(--faint)]" dir="ltr">حد ضرر ${fmt(s.stop)}</span>` : ''}<a href="${s.tb || TB.watch}" target="_blank" rel="noopener" class="mono text-[10px] inline-flex items-center gap-0.5 text-[var(--violet)] hover:text-[var(--ink)] transition-colors" dir="ltr" title="مشاهده در tablokhani.com">تحلیل<i data-lucide="external-link" style="width:9px;height:9px"></i></a></div></div>` : DASH;
     const spark = s.closes.length >= 10 ? `<canvas class="spark block" width="108" height="30" style="width:108px;height:30px" data-i="${i}"></canvas>` : DASH;
     const pwr = Number.isFinite(s.power) ? `<div class="flex items-center gap-2"><span class="mono text-[12.5px] ${s.power >= 1.3 ? 'text-[var(--green)]' : 'text-[var(--ink)]'}" dir="ltr">${s.power.toFixed(2)}</span><span class="pwr-wrap"><span class="pwr-fill" style="width:${Math.min(s.power / 2.4, 1) * 100}%"></span></span></div>` : DASH;
     return `<tr data-r="${i}" class="${i === 0 ? 'active' : ''}"><td><span class="rank ${i < 3 ? 'top' : ''}">${i + 1}</span></td>
@@ -1709,10 +1737,10 @@ function detail(s) {
       </div>
     </div>
 
-    <!-- ── بخش ۳: بازشکافی مدل امتیازدهی چندعاملی ── -->
+    <!-- ── بخش ۳: کالبدشکافی مدل امتیازدهی چندعاملی ── -->
     <div class="mt-5 pt-4 border-t border-[var(--line)]">
       <p class="text-[12.5px] font-bold mb-3 flex items-center gap-2">
-        <i data-lucide="chart-pie" class="text-[var(--green)]" style="width:14px;height:14px"></i>بازشکافی مدل چندعاملی (Σ = ۱۰۰)
+        <i data-lucide="chart-pie" class="text-[var(--green)]" style="width:14px;height:14px"></i>کالبدشکافی مدل چندعاملی (Σ = ۱۰۰)
       </p>
       <div class="space-y-2.5" id="fbars">${bars}</div>
     </div>
