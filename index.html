@@ -111,6 +111,7 @@
   .ticker::after{ left:0; background:linear-gradient(to left,var(--bg0),transparent); }
   .ticker-track{ display:flex; gap:0; width:max-content; animation:scroll 46s linear infinite; }
   .ticker:hover .ticker-track{ animation-play-state:paused; }
+  .ticker.paused .ticker-track{ animation-play-state:paused; }
   @keyframes scroll{ to{ transform:translateX(-50%); } }
   .tick-item{ display:flex; align-items:center; gap:10px; padding:12px 26px; border-left:1px solid var(--line); white-space:nowrap; font-size:13px; }
 
@@ -538,7 +539,7 @@
     <div class="reveal text-center max-w-2xl mx-auto">
       <span class="eyebrow"><i data-lucide="git-branch" style="width:13px;height:13px"></i> معماری پایپ‌لاین</span>
       <h2 class="h-display text-[clamp(26px,4vw,44px)] mt-4">از CDN تا سیگنال، در پنج گام</h2>
-      <p class="text-[var(--muted)] mt-4 text-[14.5px] leading-7">ماژولار، Type-hinted، تحمل‌پذیر در برابر خطای شبکه با مکانیزم Retry و Backoff نمایی.</p>
+      <p class="text-[var(--muted)] mt-4 text-[14.5px] leading-7">ماژولار، تایپ‌هینت‌شده، تحمل‌پذیر در برابر خطای شبکه با مکانیزم تلاش مجدد و وقفه نمایی.</p>
     </div>
 
     <div class="relative mt-14 grid lg:grid-cols-5 gap-4 lg:gap-0" id="pflow">
@@ -714,7 +715,7 @@ from pathlib import Path
 # پراکسی BrsApi.ir استفاده می‌شود تا محدودیت CORS دور زده شود.
 CDN_BASE = "https://cdn.tsetmc.com/api"
 BRS_API_BASE = "https://Api.BrsApi.ir/Tsetmc"
-BRS_API_KEY = "BBU9LxypHJC4Anr9xq8uTu35E4hb99m3"  # کلید نمونه؛ در محیط تولید از env بخوانید
+BRS_API_KEY = "BBU9LxypHJC4Anr9xq8uTu35E4hb99m3"  # ⚠️ کلید نمونه — در پروداکشن از env یا Worker/Proxy بخوانید و این مقدار را روتیت کنید
 
 MARKET_WATCH_URL: str = (
     f"{CDN_BASE}/ClosingPrice/GetMarketWatch"
@@ -804,7 +805,7 @@ class NetworkError(RuntimeError):
 
 
 class TsetmcClient:
-    """کلاینت هم‌گام سبک برای CDN بورس با Retry و Backoff نمایی."""
+    """کلاینت هم‌گام سبک برای CDN بورس با تلاش مجدد و وقفه نمایی."""
 
     def __init__(self) -> None:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -1884,6 +1885,14 @@ async function runScan(manual) {
     scheduleRetry(60, 'بروزرسانی بعدی');
   }
 }
+
+(function tickerTouch(){
+  const t = document.querySelector('.ticker'); if(!t) return;
+  t.addEventListener('touchstart', ()=> t.classList.add('paused'), {passive:true});
+  t.addEventListener('touchend', ()=> t.classList.remove('paused'));
+  t.addEventListener('mouseenter', ()=> t.classList.add('paused'));
+  t.addEventListener('mouseleave', ()=> t.classList.remove('paused'));
+})();
 
 /* — اتصال رویدادها و بوت — */
 (function liveBoot() {
