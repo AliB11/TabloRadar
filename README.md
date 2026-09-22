@@ -30,40 +30,65 @@ python3 server.py                    # http://localhost:8000
 BRS_API_KEY=… python3 server.py      # کلید فقط در محیط سرور می‌ماند
 
 # ۲) پایپ‌لاین پایتون (CLI/Cron) — همان فرمول‌ها
-python3 main.py --offline            # رتبه‌بندی + out/signals.json + out/signals.csv
+python3 main.py --offline            # رتبه‌بندی + out/signals.json + out/signals.csv + دفتر out/runs/
 python3 main.py --explain فملی        # دلیل فارسی امتیاز یک نماد
 python3 main.py --weights 40 15 15 15 15 --minval 120 --include-base
+python3 main.py --offline --backtest  # کارنامۀ مدل → data/model-report.json (walk-forward)
 python3 main.py --loop               # اجرای روزانه ۱۲:۳۵ تهران
 
 # ۳) آزمون‌ها
-npm test                # ۴۱ آزمون: هسته + رندر + بوت کامل (Node، بدون وابستگی)
+npm test                # ۵۶ آزمون: هسته + میز پژوهش + رندر + بوت کامل (Node، بدون وابستگی)
 npm run check           # node --check روی همه ماژول‌ها
 npm run wiring          # اتصال DOM/CSS، importها، توازن تگ، نشت کلید
 npm run parity          # برابری خروجی JS و Python روی یک داده
+npm run selftest        # ۲۲ خودآزمون بک‌تست: no-lookahead، قطعیت، دفتر ثبت
 ```
 
 ## ساختار
 
 ```
-index.html                 مارک‌آپ و محتوای سئو
+index.html                 مارک‌آپ و محتوای سئو (بخش جدید: میز پژوهش #scorecard)
 assets/css/theme.css       سیستم طراحی (بدون Tailwind CDN)
 assets/js/tse.js           قواعد بازار + نرمال‌سازی فیلدها + اعداد فارسی
 assets/js/indicators.js    RSI · EMA · SMA · MACD · Bollinger · ATR · slope · vol · MDD
 assets/js/engine.js         سنجه‌های تابلو، وتوها، ۵ عامل، اطمینان، نقشه، پالس، صنایع
 assets/js/data.js          زنجیره منبع، تاریخچه، cache، تنظیمات کاربر
+assets/js/scorecard.js     رندر «کارنامۀ مدل» (فقط می‌خواند؛ عدد نمی‌سازد)
+assets/js/alerts.js        موتور هشدار شرطی — پارسر فارسی + ارزیابی + اشتراک تلگرام
+assets/js/events.js        کارت اتفاقات نماد (خواندن data/events.json / منبع دوم)
+assets/js/compare.js       مقایسۀ دو نماد سنجه‌به‌سنجه + نمودار روی‌هم
 assets/js/ui.js            رندر جدول/پنل/هیت‌مپ/رادار/دونات/ترمینال/JSON
-assets/js/app.js           بوت، فیلتر، تب‌ها، CLI، تور، What-If، خروجی‌ها
-server.py                  استاتیک + /api/market /api/history /api/info /api/health
+assets/js/app.js           بوت، فیلتر، تب‌ها، CLI، تور، What-If، خروجی‌ها، بوم دوحالتی
+server.py                  استاتیک + /api/market /api/history(+کش دیسکی) /api/info /api/health
 main.py · tsepy/*          پایپ‌لاین پایتون (config, data_provider, technical,
-                           tablokhani, scoring_engine, cli_dashboard)
-tools/                     make_offline_snapshot.py · parity_check.py ·
-                           check_wiring.py · inline_code.py
-tests/                     engine.test.mjs · dom.test.mjs · boot.test.mjs
+                           tablokhani, scoring_engine, backtest, cli_dashboard)
+tools/                     make_offline_snapshot.py · parity_check.py · check_wiring.py ·
+                           backtest_check.py · inline_code.py
+tests/                     engine.test.mjs · dom.test.mjs · lab.test.mjs · boot.test.mjs
 docs/TSE_MARKET_RESEARCH.md  تحقیق بازار (منبع‌دار) — مبنای قواعد
 AUDIT_360.md               پیمایش ۳۶۰ درجه نسخه ۲ (۱۸ یافته + شواهد خط‌به‌خط)
-CREATIVE_PROPOSALS.md      ایده‌ها + وضعیت پیاده‌سازی
+CREATIVE_PROPOSALS.md      ایده‌ها + وضعیت پیاده‌سازی (نقشۀ ۴ هفته‌ای: تحویل شد)
 data/offline-snapshot.json اسنپ‌شات برچسب‌دار برای حالت بدون شبکه
+data/model-report.json     کارنامۀ مدل (خروجی main.py --backtest)
+data/events.json           رویدادهای نماد — برچسب‌دار/شبیه‌سازی (جای‌پذیر با منبع کدال)
+data/history/              کش دیسکی تاریخچۀ /api/history (هفتگی؛ gitignore شده)
+out/                       signals.{json,csv} + دفتر اسکن‌ها runs/ (خروجی CLI)
 ```
+
+## میز پژوهش — چه چیزی در v3.1 اضافه شد
+
+1. **کارنامۀ مدل (پایداری سیگنال):** `tsepy/backtest.py` روی همان تاریخچۀ نمادها walk-forward می‌زند:
+   امتیاز هستۀ تکنیکال فقط با داده‌های رابط ≤ i محاسبه، ورود در بستهِ رابط بعد، و ارزیابی ۱/۳/۵ جلسه‌ای
+   با حدضرر ۱.۶×ATR و هدف ۱.۲×ATR گزارش می‌شود (hit-rate، lift نسبت به بچ‌مارک، بازده مازاد، بازده/ریسک،
+   جاروب آستانه‌ها). هر اسکن CLI هم در `out/runs/` ثبت می‌شود و در اجرای بعدی با جلسات سپری‌شده ارزیابی می‌گردد
+   (در حالت آفلاین «در انتظار» می‌ماند — هیچ عددی جعل نمی‌شود). UI آن را در بخش «کارنامۀ مدل» می‌خواند.
+2. **کارت اتفاقات نماد:** `data/events.json` (مجمع/افزایش‌سرمایه/بازگشایی/عرضه/افصاری) — ستون ⚑ در جدول،
+   بلوک «اتفاقات نماد» در کالبدشکافی و تقویم پیش‌رو. فعلاً برچسب‌دار/شبیه‌سازی است؛ ساختار برای منبع کدال آماده است.
+3. **کش تاریخچۀ سرور:** `/api/history` با ترتیب mem→`data/history/*.json` (TTL هفتگی)→شبکه؛ خطای شبکه
+   با کش کهنه + هدر `X-Cache: disk-stale` جواب می‌دهد — پوشش تکنیکال بدون بار شبکه.
+4. **بوم دوحالتی:** دکمۀ «بوم: شبکه عصبی» تصویرسازى معماری ورودی→پنج‌عامل→درجه را نشان می‌دهد (صریحاً تزئینی-آموزشی، نه مدل آموزشی).
+5. **هشدار شرطیِ فارسی:** `alert add وبملت قدرت خریدار > 1.4` — پارسر، ارزیابی پس از هر اسکن، متن آمادهٔ اشتراک تلگرام. هیچ‌جا سرور/توکن ذخیره نمی‌شود (localStorage).
+6. **مقایسۀ دو نماد:** `compare شپنا وبملت` یا دکمۀ «مقایسه» در کالبدشکافی — بیست سنجه با برندۀ هر سطر + منحنی ۶۰ جلسه.
 
 **زنجیره داده:** `server.py /api/market` ← `Api.BrsApi.ir` (کلید کاربر) ← `service.tsetmc.com` ← `data/offline-snapshot.json`.
 هر لایه که پاسخ دهد در هدر `X-Data-Source` و در UI («منبع: …») نوشته می‌شود؛ اگر شبکه نرسد، داشبورد با **همان فرمول‌ها روی داده آفلاین** اجرا می‌شود و صریح اعلام می‌کند که آفلاین است.

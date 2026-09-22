@@ -1,18 +1,20 @@
 {
   "name": "tabloradar",
-  "version": "3.0.0",
-  "description": "سامانه کمی اسکن، تابلوخوانی و رتبه‌بندی بورس تهران — هسته JS + پایپ‌لاین پایتون",
+  "version": "3.1.0",
+  "description": "سامانه کمی اسکن، تابلوخوانی و رتبه‌بندی بورس تهران — هسته JS + پایپ‌لاین پایتون + میز پژوهش (بک‌تست، رویداد، هشدار، مقایسه)",
   "type": "module",
   "private": true,
   "scripts": {
     "test": "node --test --test-force-exit tests/*.test.mjs",
     "serve": "python3 server.py",
     "snapshot": "python3 tools/make_offline_snapshot.py",
+    "backtest": "python3 main.py --offline --backtest",
+    "selftest": "python3 tools/backtest_check.py",
     "bundle": "python3 tools/inline_code.py",
     "build": "npm run snapshot && npm run bundle",
     "parity": "python3 tools/parity_check.py",
     "wiring": "python3 tools/check_wiring.py",
-    "check": "node --check assets/js/tse.js && node --check assets/js/indicators.js && node --check assets/js/engine.js && node --check assets/js/data.js && node --check assets/js/ui.js && node --check assets/js/app.js"
+    "check": "node --check assets/js/tse.js && node --check assets/js/indicators.js && node --check assets/js/engine.js && node --check assets/js/data.js && node --check assets/js/ui.js && node --check assets/js/scorecard.js && node --check assets/js/alerts.js && node --check assets/js/events.js && node --check assets/js/compare.js && node --check assets/js/app.js"
   },
   "engines": { "node": ">=18.0.0" },
   "license": "MIT"

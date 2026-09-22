@@ -21,6 +21,7 @@ from tsepy import config as C
 from tsepy import cli_dashboard as cli
 from tsepy import data_provider as dp
 from tsepy import scoring_engine as se
+from tsepy import backtest as bt
 
 TEHRAN = timezone(timedelta(hours=3, minutes=30))
 
@@ -41,6 +42,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--json", dest="json_path", default="out/signals.json", help="خروجی JSON")
     p.add_argument("--no-files", action="store_true", help="فقط چاپ جدول، بدون نوشتن فایل")
     p.add_argument("--explain", metavar="L18", help="چاپ دلایل امتیاز یک نماد")
+    p.add_argument("--backtest", action="store_true",
+                   help="واکشی تاریخچه‌محور + کارنامۀ مدل (data/model-report.json)")
+    p.add_argument("--runs-dir", default="out/runs", help="محل دفتر ثبت اسکن‌ها")
+    p.add_argument("--no-journal", action="store_true", help="ثبت اسکن در out/runs انجام نشود")
     p.add_argument("--quiet", action="store_true")
     p.add_argument("--loop", action="store_true", help="اجرای روزانه در ساعت تعیین‌شده")
     return p.parse_args(argv)
@@ -83,6 +88,7 @@ def run_once(a: argparse.Namespace) -> dict:
     result["pulse"] = se.market_pulse(insts)
     result["elapsed"] = time.perf_counter() - t0
     result["source"], result["live"] = source, live
+    result["insts"] = insts
     log(f"   رتبه‌بندی: {len(result['rows'])} · وتو: {len(result['vetoed'])} "
         f"({result['veto_counts']}) · زمان: {result['elapsed']:.2f}s")
     return result
@@ -139,6 +145,16 @@ def main(argv=None) -> int:
                 payload = cli.payload_from(result, result["source"], result["live"], build_rules(a), build_weights(a))
                 for path in cli.write_outputs(payload):
                     print(f"✓ نوشته شد: {path}")
+            if not a.no_journal:
+                jp = bt.journal_write(result, result["source"], result["live"], a.runs_dir)
+                if not a.quiet and jp:
+                    print(f"✓ ثبت در دفتر اسکن‌ها: {jp}")
+            if a.backtest:
+                report = bt.build_report(result["insts"], result, build_rules(a),
+                                         result["source"], result["live"], a.runs_dir)
+                rp = bt.write_report(report)
+                print(bt.render_summary(report))
+                print(f"✓ کارنامه نوشته شد: {rp}")
         if not a.loop:
             return 0
         nxt = next_run_at(C.Settings().loop_at)

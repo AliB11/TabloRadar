@@ -5,6 +5,7 @@
 
 import { fmtNum, fmtPct, fmtBig, fmtPrice, fmtOpts, tehranTime } from './tse.js';
 import { FACTOR_META, VETO_META, DEFAULT_WEIGHTS } from './engine.js';
+import { eventsBadge, eventsFor, eventItemHtml } from './events.js';
 
 export const $ = s => document.querySelector(s);
 export const $$ = s => [...document.querySelectorAll(s)];
@@ -93,7 +94,7 @@ const HORIZON = {
   long: { fa: 'سرمایه‌ای · ۳ تا ۹ ماه', cls: 'c-violet', icon: 'layers' },
 };
 
-export function renderTable(rows, { sortKey, sortDir, onSort } = {}) {
+export function renderTable(rows, { sortKey, sortDir, onSort, events = [] } = {}) {
   const tb = $('#signal-rows'); if (!tb) return;
   if (!rows.length) {
     tb.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:34px;color:var(--faint)">نمادی با این فیلترها باقی نماند — «پاک‌سازی فیلتر» را بزنید.</td></tr>`;
@@ -117,7 +118,7 @@ export function renderTable(rows, { sortKey, sortDir, onSort } = {}) {
     const risk = Number.isFinite(score.confidence) ? score.confidence : 0;
     return `<tr data-r="${i}">
       <td data-l="رتبه"><span class="rank ${i < 3 ? 'top' : ''}">${i + 1}</span></td>
-      <td data-l="نماد"><span class="sym"><b>${esc(s.l18)}</b><span>${esc(s.cs)} · ${esc(s.board)}</span></span></td>
+      <td data-l="نماد"><span class="sym"><b>${esc(s.l18)}${events.length ? eventsBadge(events, s.l18) : ''}</b><span>${esc(s.cs)} · ${esc(s.board)}</span></span></td>
       <td data-l="آخرین (ریال)"><span class="row" style="gap:8px;justify-content:flex-end">${n(fmtOpts.unit === 'toman' ? s.pl / 10 : s.pl)} ${pct(m.chgLast)}</span></td>
       <td data-l="پایانی/دیروز" class="hide-sm">${pct(m.chgClose)}</td>
       <td data-l="قدرت خریدار">${powerCell(m.buyerPower)}</td>
@@ -209,7 +210,7 @@ export function tableSkeleton(mode) {
 
 /* ═════════════════۳. پنل جزئیات ═════════════════ */
 
-export function renderDetail(r, { watchlist, onWatch } = {}) {
+export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onCmp = null } = {}) {
   const p = $('#detail-panel'); if (!p) return;
   if (!r) {
     p.innerHTML = `<div class="glass detail"><div class="center" style="padding:22px 0">
@@ -276,18 +277,24 @@ export function renderDetail(r, { watchlist, onWatch } = {}) {
     ${reasons && reasons.length ? `<div><b style="font-size:13.5px">چرا این امتیاز؟</b>
       <ul class="why" style="margin-top:9px">${reasons.slice(0, 7).map(x => `<li class="${x.tone}">${esc(x.text)}</li>`).join('')}</ul></div>` : ''}
 
+    ${(() => { const mine = eventsFor(events, s.l18).filter(e => e.days_ahead >= -1).slice(0, 3); return mine.length
+      ? `<div><b style="font-size:13.5px">اتفاقات نماد</b>
+          <div class="col" style="gap:6px;margin-top:8px">${mine.map(eventItemHtml).join('')}</div></div>` : ''; })()}
+
     <div class="row" style="gap:8px;justify-content:space-between">
       <span class="row" style="gap:7px">
         <a class="btn-mini" target="_blank" rel="noopener" href="https://www.tsetmc.com/ins/${esc(s.insCode)}">${ico('external-link', 12)}TSETMC</a>
         <a class="btn-mini" target="_blank" rel="noopener" href="https://tablokhani.com/">${ico('eye', 12)}تحلیل تابلو</a>
       </span>
       <span class="row" style="gap:7px">
+        <button class="btn-mini ${cmp.includes(s.l18) ? 'is-on' : ''}" id="dp-cmp">${ico('columns-2', 12)}${cmp.includes(s.l18) ? 'حذف از مقایسه' : 'مقایسه'}</button>
         <button class="btn-mini" id="dp-watch">${ico(inWatch ? 'star' : 'star-off', 12)}${inWatch ? 'حذف از دیده‌بان' : 'به دیده‌بان'}</button>
         <button class="btn-mini" id="dp-copy">${ico('clipboard-copy', 12)}کپی تحلیل</button>
       </span>
     </div>
   </div>`;
   icons();
+  const cm = $('#dp-cmp'); if (cm && onCmp) cm.addEventListener('click', () => onCmp(s.l18));
   const wc = $('#dp-watch'); if (wc && onWatch) wc.addEventListener('click', () => onWatch(s.l18));
   const cc = $('#dp-copy');
   if (cc) cc.addEventListener('click', async () => {
@@ -513,6 +520,8 @@ export const PIPELINE = [
     desc: 'پنج عامل وزنی، اطمینان، درجه سیگنال، نقشه معامله و استخراج Top-N.' },
   { fa: 'رندر و خروجی', file: 'assets/js/ui.js · app.js', icon: 'file-json', color: 'var(--cyan)',
     desc: 'دیده‌بان، هیت‌مپ، رادار، CSV/JSON، اشتراک تلگرام و CLI مرورگر.' },
+  { fa: 'میز پژوهش', file: 'tsepy/backtest.py · assets/js/scorecard.js', icon: 'graduation-cap', color: 'var(--violet)',
+    desc: 'ثبت هر اسکن در out/runs/، walk-forward بدون نگاه‌به‌آینده، کارنامۀ مدل، رویدادها، هشدار شرطی و مقایسۀ دو نماد.' },
 ];
 
 export function renderPipeline() {

@@ -17,6 +17,7 @@ import argparse
 import functools
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -28,6 +29,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+HIST_DIR = ROOT / "data" / "history"      # کش دیسکی تاریخچه (هفتۀ ۳ نقشه راه)
+HIST_TTL = 7 * 86400                      # هفته‌ای یک‌بار تازه‌سازی
+MEM_TTL = 1800                            # کش درون‌فرآیندی برای کاهش فشار لحظه‌ای
 BRS_BASE = os.environ.get("BRS_API_BASE", "https://Api.BrsApi.ir/Tsetmc/")
 TSETMC_CDN = os.environ.get("TSETMC_CDN", "https://cdn.tsetmc.com/api/")
 TSETMC_LEGACY = "https://service.tsetmc.com/tsev2/data/"
@@ -101,11 +105,84 @@ def upstream_history(l18: str | None, ins_code: str | None, days: int) -> tuple[
     return try_sources(urls)
 
 
+# ─────────────────────────── کش دیسکی تاریخچه ───────────────────────────
+
+
+def hist_key(l18: str | None, ins: str | None, days: int) -> str:
+    return f"{ins or l18}-{days}"
+
+
+def hist_path(key: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", key)[:120]
+    return HIST_DIR / f"{safe}.json"
+
+
+def hist_cache_read(key: str, allow_stale: bool = False):
+    """(body, src, age_s) از دیسک؛ None اگر نبود یا (و allow_stale نه) کهنه بود."""
+    p = hist_path(key)
+    if not p.is_file():
+        return None
+    try:
+        rec = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    age = time.time() - float(rec.get("cached_at", 0))
+    if not allow_stale and age > HIST_TTL:
+        return None
+    return rec.get("body") or "", rec.get("src") or "disk", age
+
+
+def hist_cache_write(key: str, body: str, src: str) -> None:
+    try:
+        HIST_DIR.mkdir(parents=True, exist_ok=True)
+        hist_path(key).write_text(
+            json.dumps({"cached_at": time.time(), "src": src, "body": body}, ensure_ascii=False),
+            encoding="utf-8")
+    except OSError:
+        pass   # کش اختیاری است؛ نوشتن ناموفق نباید سرویس را بشکند
+
+
+def history_lookup(l18: str | None, ins: str | None, days: int,
+                   allow_net: bool = True) -> tuple[str, str, str, str | None]:
+    """ترتیب اولویت: حافظۀ درون‌فرآیندی ← دیسک (تازه) ← شبکه ← دیسک (کهنه، STALE).
+
+    برمی‌گرداند: (body, src, xcache, err) — xcache ∈ {mem, disk, net, disk-stale, None}
+    """
+    key = hist_key(l18, ins, days)
+    now = time.time()
+    with _lock:
+        hit = _cache.get("hist:" + key)
+    if hit and now - hit[0] < MEM_TTL:
+        return hit[1][0], hit[1][1], "mem", None
+    fresh = hist_cache_read(key)
+    if fresh:
+        body, src, _age = fresh
+        with _lock:
+            _cache["hist:" + key] = (now, (body, src))
+        return body, src, "disk", None
+    if allow_net:
+        try:
+            body, src = upstream_history(l18, ins, days)
+            hist_cache_write(key, body, src)
+            with _lock:
+                _cache["hist:" + key] = (now, (body, src))
+            return body, src, "net", None
+        except Exception as e:  # noqa: BLE001
+            stale = hist_cache_read(key, allow_stale=True)
+            if stale:
+                return stale[0], f"{stale[1]} (کهنه {int(stale[2] / 86400)} روزه)", "disk-stale", None
+            return "", "", None, str(e)[:600]
+    stale = hist_cache_read(key, allow_stale=True)   # --no-upstream هم کش کهنه را با برچسب می‌دهد
+    if stale:
+        return stale[0], f"{stale[1]} (کهنه {int(stale[2] / 86400)} روزه)", "disk-stale", None
+    return "", "", None, "upstream disabled (--no-upstream) و کش دیسکی خالی است"
+
+
 # ─────────────────────────── هندلر HTTP ───────────────────────────
 
 
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "TabloRadar/3.0"
+    server_version = "TabloRadar/3.1"
 
     def log_message(self, fmt, *args):  # لاگ کوتاه‌تر و خوانا
         sys.stderr.write(f"  {time.strftime('%H:%M:%S')}  {fmt % args}\n")
@@ -174,24 +251,26 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    # ── /api/history ──
+    # ── /api/history — کش دیسکی هفتگی؛ در حالت --no-upstream فقط از کش سرو می‌شود ──
     def _api_history(self, qs):
-        if getattr(self.server, "no_upstream", False):
-            return self._json(503, {"error": "upstream disabled"})
         l18 = (qs.get("l18") or [None])[0]
         ins = (qs.get("insCode") or [None])[0]
-        days = max(5, min(int((qs.get("days") or ["260"])[0]), 500))
+        try:
+            days = max(5, min(int((qs.get("days") or ["260"])[0]), 500))
+        except ValueError:
+            days = 260
         if not (l18 or ins):
             return self._json(400, {"error": "l18 یا insCode لازم است"})
-        try:
-            body, src = cached(f"hist:{l18 or ins}:{days}", 1800, lambda: upstream_history(l18, ins, days))
-        except Exception as e:
-            return self._json(502, {"error": str(e)[:600]})
+        allow_net = not getattr(self.server, "no_upstream", False)
+        body, src, xcache, err = history_lookup(l18, ins, days, allow_net=allow_net)
+        if err:
+            return self._json(502, {"error": err})
         payload = body.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("X-Data-Source", src)
+        self.send_header("X-Cache", xcache or "bypass")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -245,7 +324,9 @@ def main() -> int:
     print(f"\n  تابلورادار · http://localhost:{args.port}  (ریشه: {root})")
     for ip in lan_ips():
         print(f"  شبکه محلی      · http://{ip}:{args.port}")
+    cached_n = len(list(HIST_DIR.glob("*.json"))) if HIST_DIR.is_dir() else 0
     print(f"  پروکسی داده    · /api/market /api/history /api/info/<insCode> /api/health")
+    print(f"  کش تاریخچه     · {HIST_DIR} — {cached_n} نماد کش‌شده (TTL ۷ روز؛ در حالت --no-upstream همین کش سرو می‌شود)")
     print(f"  کلید BrsApi    · {'از محیط خوانده شد' if os.environ.get('BRS_API_KEY') else 'تنظیم نشده (BRS_API_KEY)'}")
     print(f"  حالت آفلاین    · {'فعال' if args.no_upstream else 'غیرفعال'}")
     print("  Ctrl+C برای توقف\n")

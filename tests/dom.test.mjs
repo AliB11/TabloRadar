@@ -89,6 +89,24 @@ test('renderDetail: کالبدشکافی، نقشه معامله و دلیل‌�
   assert.ok(p.innerHTML.includes('ریال'), 'واحد ریال در پنل جزئیات');
 });
 
+test('اتفاقات نماد + دکمه مقایسه در رندر زنده؛ کلاس‌ها قفل CSS', () => {
+  const evj = JSON.parse(readFileSync(join(HERE, '..', 'data', 'events.json'), 'utf8'));
+  const withEv = evj.events.find(e => e.days_ahead >= -1);
+  const row = result.rows.find(r => r.inst.l18 === withEv.l18) || result.rows[0];
+  U.renderDetail(row, { watchlist: [], onWatch: () => {}, events: evj.events, cmp: [row.inst.l18], onCmp: () => {} });
+  const html = q('#detail-panel').innerHTML;
+  clean(html);
+  assert.ok(html.includes('اتفاقات نماد') || html.includes('مقایسه'), 'اتفاقات/مقایسه رندر نشد');
+  U.renderTable(result.rows.slice(0, 6), { events: evj.events });
+  const tb = q('#signal-rows');
+  clean(tb.innerHTML);
+  const css = readFileSync(join(HERE, '..', 'assets', 'css', 'theme.css'), 'utf8');
+  const classes = new Set();
+  for (const m of (html + tb.innerHTML).matchAll(/class="([^"]*)"/g)) m[1].split(/\s+/).forEach(c => c && classes.add(c));
+  const missing = [...classes].filter(c => !new RegExp(`\\.${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])`).test(css));
+  assert.deepEqual(missing, [], `کلاس‌های بی‌استایلِ بخش رویداد: ${missing.join(', ')}`);
+});
+
 test('renderPulse: شش سلول نبض بازار بدون عدد ساختگی', () => {
   U.renderPulse(pulse);
   const g = q('#pulse-grid');
@@ -171,6 +189,7 @@ test('renderJSON: ساختار خروجی با فیلدهای بومی و بدو
 
 test('همه کلاس‌های تولیدشده در رندر، در CSS تعریف شده‌اند', () => {
   const css = readFileSync(join(HERE, '..', 'assets', 'css', 'theme.css'), 'utf8');
+  U.renderTable(result.rows.slice(0, 8), { sortKey: 'score', sortDir: -1 });   // رندر واقعی، نه اسکلتونِ تست ۶
   const html = q('#signal-rows').innerHTML + q('#detail-panel').innerHTML + q('#pulse-grid').innerHTML
     + q('#heat-grid').innerHTML + q('#veto-cards').innerHTML;
   const classes = new Set();

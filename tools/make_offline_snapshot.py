@@ -233,6 +233,80 @@ def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"✓ {OUT.relative_to(ROOT)} — {len(instruments)} نماد — {OUT.stat().st_size/1024:.1f} KB")
+    n_ev = write_events(instruments)
+    print(f"✓ {EV_OUT.relative_to(ROOT)} — {n_ev} رویداد (برچسب‌دار/شبیه‌سازی)")
+
+
+# ── رویدادهای نماد (هفتۀ ۲ نقشه راه) — فایل جدا، seed مستقل، بدون تغییر در اسنپ‌شات ──
+EV_OUT = ROOT / "data" / "events.json"
+
+EVENT_KINDS = (
+    ("assembly", "مجمع", "رأی‌گیری دربارهٔ {detail}"),
+    ("capincrease", "افزایش سرمایه", "افزایش {p}٪ سرمایه از محل {src}"),
+    ("reopen", "بازگشایی", "بازگشایی پس از رفع توقف؛ حد سفارش روزِ اول {lim}٪"),
+    ("dividend", "سود نقدی", "سود {dps} ریال به ازای هر سهم؛ شروع پرداخت"),
+    ("offer", "عرضه اولیه", "{lots} میلیون سهم در قیمت هر سهم {px} ریال"),
+    ("profit", "افصاری کدال", "افصاری {span}ماهه منتشر می‌شود"),
+)
+SOURCES = ("اندوزی سود گذشته", "آوردهٔ سهامداران", "سود انباشته", "ماده ۱۲۵ قانون معادن")
+CAPS = (30, 40, 50, 60, 100, 120)
+
+
+def jalali_plus(day: int, offset: int) -> tuple[int, int]:
+    """(ماه ۶=تیر … ۷=مرداد) سرانهٔ تقویمِ نمایشی: ۳۱ روزه؛ فقط همین دو ماهِ اطراف as_of."""
+    m, d = 6, day + offset
+    while d > 31:
+        d -= 31
+        m += 1
+    return m, d
+
+
+def write_events(instruments: list[dict]) -> int:
+    ev_rng = random.Random(SEED ^ 0x5EED)      # جریان مستقل — اسنپ‌شات دست‌نخورده می‌ماند
+    events = []
+    for rec in instruments:
+        if rec.get("tno", 0) == 0:
+            continue
+        if ev_rng.random() > 0.62:
+            continue                            # همه نمادها رویداد ندارند — واقعی‌تر
+        while True:
+            kind, fa, tmpl = EVENT_KINDS[ev_rng.randrange(len(EVENT_KINDS))]
+            if kind != "offer" or rec["l18"].startswith("نماد"):
+                break   # «عرضه اولیه» فقط برای نمادهای تازه‌پذیره‌شدهٔ فهرست منطقی است
+        off = int(ev_rng.uniform(-4, 25))       # گذشته و پیش‌رو
+        m, d = jalali_plus(30, off)
+        if kind == "assembly":
+            body = {"detail": f"افزایش سرمایهٔ {ev_rng.choice(CAPS)}٪ و {ev_rng.choice(SOURCES)}"}
+        elif kind == "capincrease":
+            body = {"p": ev_rng.choice(CAPS), "src": ev_rng.choice(SOURCES)}
+        elif kind == "reopen":
+            body = {"lim": ev_rng.choice((3, 5, 7)) * 10}
+        elif kind == "dividend":
+            body = {"dps": int(rec["pc"] * ev_rng.uniform(0.05, 0.35)) * 10}
+        elif kind == "offer":
+            body = {"lots": ev_rng.choice((120, 300, 450, 800)),
+                    "px": int(rec["pc"] * ev_rng.uniform(0.85, 1.0))}
+        else:
+            body = {"span": ev_rng.choice(("یکم", "دوم", "سوم"))}
+        detail = tmpl.format(**body)
+        events.append({
+            "l18": rec["l18"], "l30": rec["l30"], "type": kind, "type_fa": fa,
+            "days_ahead": off, "date": f"1405-{m:02d}-{d:02d}",
+            "title": f"{fa} — {rec['l18']}", "detail": detail,
+            "provenance": "simulated",
+        })
+    events.sort(key=lambda e: e["days_ahead"])
+    payload = {
+        "schema": "tabloradar.events/v1",
+        "as_of": MACRO["as_of"],
+        "disclaimer": ("این فایل نمایش رابط «کارت اتفاقات نماد» است؛ رویدادها شبیه‌سازیِ قطعی "
+                       "(seed=14050630^0x5EED)‌اند و ادعای واقعیت ندارند. در نسخۀ متصل، خواننده از "
+                       "کدال/TSETMC جایگزین می‌شود (پیکربندی: منبع دوم در README § API‌ها)."),
+        "events": events,
+    }
+    EV_OUT.parent.mkdir(parents=True, exist_ok=True)
+    EV_OUT.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return len(events)
 
 
 if __name__ == "__main__":

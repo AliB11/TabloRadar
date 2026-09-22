@@ -36,12 +36,13 @@
     <a href="#top" class="brand">
       <span class="brand-mark"><i data-lucide="radar" style="width:18px;height:18px;color:var(--green)"></i></span>
       <span>تابلو<span class="grad">رادار</span></span>
-      <span class="mono hide-sm" style="font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:7px;padding:2px 7px">TSE·QUANT v3.0</span>
+      <span class="mono hide-sm" style="font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:7px;padding:2px 7px">TSE·QUANT v3.1</span>
     </a>
     <div class="nav-links">
       <a class="navlink" href="#pulse">نبض بازار</a>
       <a class="navlink" href="#signals">دیده‌بان</a>
       <a class="navlink" href="#engine">موتور امتیاز</a>
+      <a class="navlink" href="#scorecard">کارنامۀ مدل</a>
       <a class="navlink" href="#pipeline">معماری</a>
       <a class="navlink" href="#data">داده و شفافیت</a>
       <a class="navlink" href="#code">کد منبع</a>
@@ -87,6 +88,9 @@
     <div class="reveal row center" style="justify-content:center;margin-top:36px">
       <a href="#signals" class="btn btn-primary"><i data-lucide="radar" style="width:16px;height:16px"></i> مشاهده دیده‌بان بازار</a>
       <a href="#engine" class="btn"><i data-lucide="gauge" style="width:16px;height:16px"></i> چگونه امتیاز می‌دهیم؟</a>
+      <button class="btn" id="hero-mode" title="حالت دوم بوم: شبکه عصبی — صرفاً تصویرسازی معماری امتیازدهی است، نه مدل آموزشی فعال">
+        <i data-lucide="network" style="width:16px;height:16px"></i> بوم: شبکه عصبی
+      </button>
     </div>
 
     <div class="reveal grid g4" style="margin-top:56px">
@@ -397,6 +401,56 @@
   </div>
 </section>
 
+<!-- ══════════════════ کارنامۀ مدل، رویدادها، هشدارها ══════════════════ -->
+<section id="scorecard" class="section section-tint">
+  <div class="wrap">
+    <div class="reveal" style="max-width:72ch">
+      <span class="eyebrow"><i data-lucide="graduation-cap" style="width:13px;height:13px"></i> میز پژوهش — خودِ مدل هم زیر ذره‌بین</span>
+      <h2 class="h2">کارنامۀ مدل، <span class="grad">تقویم رویدادها</span> و دیده‌بان هشدار</h2>
+      <p class="lead">این بخش ادعای خودِ سامانه را اندازه می‌گیرد: پایداری سیگنال در افق‌های ۱/۳/۵ جلسه‌ای
+        (walk-forward روی تاریخچه، بدون نگاه به آینده)، اتفاقات پیش‌روی نمادها و هشدارهای شرطی شما.
+        کارنامه را پایتون می‌سازد (<span class="mono" dir="ltr">python3 main.py --offline --backtest</span>)؛
+        این‌جا فقط خوانده و رندر می‌شود — نه عدد تازه‌ای، نه میانگین ساختگی.</p>
+    </div>
+
+    <div class="sc-grid reveal" style="margin-top:30px">
+      <div class="glass p-6" style="border-radius:18px" id="sc-card">
+        <div class="row-between" style="margin-bottom:14px">
+          <b style="font-size:14.5px">کارنامۀ مدل — آزمون پایداری سیگنال</b>
+          <span class="chip" id="sc-refresh" role="button" tabindex="0" title="بازخوانی data/model-report.json">بازخوانی</span>
+        </div>
+        <div id="sc-body"><div class="sc-empty"><span class="spin"></span> خواندن کارنامه …</div></div>
+      </div>
+
+      <div class="col" style="gap:16px">
+        <div class="glass p-6" style="border-radius:18px">
+          <div class="row-between" style="margin-bottom:12px">
+            <b style="font-size:14.5px">تقویم اتفاقات نماد</b>
+            <span class="tiny faint" id="ev-note">—</span>
+          </div>
+          <div class="col" style="gap:9px" id="ev-list"></div>
+        </div>
+        <div class="glass p-6" style="border-radius:18px">
+          <div class="row-between" style="margin-bottom:10px">
+            <b style="font-size:14.5px">هشدار شرطی برای تلگرام</b>
+            <span class="tiny faint">محلی · بدون سرور</span>
+          </div>
+          <p class="tiny muted" style="margin:0 0 10px">شرط را فارسی بنویسید — مثال:
+            <span class="mono" dir="ltr">وبملت قدرت خریدار &gt; 1.4</span> یا
+            <span class="mono" dir="ltr">هر نماد حجم مشکوک ≥ 2.5</span>. پس از هر اسکن ارزیابی می‌شود؛
+            متنِ آماده را در تلگرام بازنشر می‌کنید (کلید بات هیچ‌جا ذخیره نمی‌شود).</p>
+          <div class="row alert-form" style="gap:8px">
+            <input id="alert-add" placeholder="مثلاً: فولاد ظرفیت > 60" aria-label="شرط هشدار" />
+            <button class="btn-mini" id="alert-add-btn"><span>افزودن</span></button>
+          </div>
+          <div class="col" style="gap:8px;margin-top:12px" id="alert-list"></div>
+          <div class="col" style="gap:8px;margin-top:10px" id="alert-fired"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ══════════════════ داده و شفافیت ══════════════════ -->
 <section id="data" class="section">
   <div class="wrap">
@@ -448,7 +502,7 @@
   <div class="wrap">
     <div class="reveal center" style="max-width:66ch;margin-inline:auto">
       <span class="eyebrow"><i data-lucide="git-branch" style="width:13px;height:13px"></i> معماری — از CDN تا سیگنال</span>
-      <h2 class="h2">شش گام، هر گام یک فایل مستقل و قابل‌آزمون</h2>
+      <h2 class="h2">هفت گام، هر گام یک فایل مستقل و قابل‌آزمون</h2>
       <p class="lead mx-auto">هسته محاسبه در ماژول‌های ES است و با <span class="mono" dir="ltr">node --test</span> پوشش آزمون گرفته؛ پایتون لایه جمع‌آوری/برنامه‌ریزی زمان‌بندی است.</p>
     </div>
     <div class="pflow reveal" style="margin-top:48px" id="pflow">
@@ -567,6 +621,17 @@
 </aside>
 
 <div class="toast" id="toast" role="status" aria-live="polite"><div></div></div>
+
+<!-- ══════════════════ پنجرۀ مقایسۀ دو نماد ══════════════════ -->
+<div class="cmp-scrim" id="cmp-scrim"></div>
+<aside class="cmp-modal" id="cmp-modal" role="dialog" aria-modal="true" aria-label="مقایسۀ دو نماد">
+  <div class="codewin-hd">
+    <i data-lucide="columns-2" style="width:15px;height:15px;color:var(--cyan)"></i>
+    <span class="t">مقایسۀ دو نماد — سنجه به سنجه، با برندهٔ هر سطر</span>
+    <button class="btn-mini" id="cmp-close" style="margin-inline-start:auto"><span>بستن ✕</span></button>
+  </div>
+  <div class="cmp-body" id="cmp-body"></div>
+</aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://unpkg.com/lucide@latest" onerror="window.__noIcons=1"></script>

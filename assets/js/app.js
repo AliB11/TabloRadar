@@ -8,6 +8,10 @@ import {
   instrumentMetrics, FACTOR_META,
 } from './engine.js';
 import { loadMarket, loadOfflineSnapshot, CFG, loadConfigFromStorage, saveConfig } from './data.js';
+import { loadModelReport, renderScorecard } from './scorecard.js';
+import { parseAlert, checkAlerts, alertLabel, alertLine, fireText, loadAlerts, saveAlerts } from './alerts.js';
+import { loadEvents, upcoming, eventItemHtml } from './events.js';
+import { buildCompare, compareHtml, drawCompareSpark } from './compare.js';
 import * as U from './ui.js';
 
 const S = {
@@ -16,14 +20,107 @@ const S = {
   sort: { key: 'score', dir: -1 },
   view: 'table', filter: { q: '', sector: '', market: '', top: 10, limitUp: false, inflow: false, queueFree: false },
   selected: null, watch: [], meta: {}, busy: false, timer: null, cd: null, attempt: 0,
+  report: null, reportErr: '', events: [], eventsErr: '', alerts: [], cmp: [], fired: [], heroMode: 'candles',
 };
 
 try {
   S.weights = JSON.parse(localStorage.getItem('tr.weights') || 'null') || S.weights;
   S.rules = JSON.parse(localStorage.getItem('tr.rules') || 'null') || S.rules;
   S.watch = JSON.parse(localStorage.getItem('tr.watch') || '[]');
+  S.heroMode = localStorage.getItem('tr.hero') === 'net' ? 'net' : 'candles';
   Object.assign(fmtOpts, JSON.parse(localStorage.getItem('tr.fmt') || '{}'));
 } catch { /* تنظیمات نخستین */ }
+S.alerts = loadAlerts();
+
+/* ─────────────── ۱٫ب  میز پژوهش: کارنامه، رویدادها، هشدارها، مقایسه ─────────────── */
+
+async function refreshLab() {
+  const [rep, ev] = await Promise.all([loadModelReport(), loadEvents()]);
+  S.report = rep.rep; S.reportErr = rep.err || '';
+  S.events = ev.events || []; S.eventsErr = ev.err || '';
+  renderLab();
+}
+
+function renderLab() {
+  renderScorecard(S.report, { err: S.reportErr });
+  renderEventsPanel();
+  renderAlertList();
+  fireCheck();
+}
+
+function renderEventsPanel() {
+  const list = U.$('#ev-list'), note = U.$('#ev-note');
+  if (!list) return;
+  if (!S.events.length) {
+    list.innerHTML = `<p class="tiny faint" style="margin:0">${U.esc(S.eventsErr ? `منبع رویداد متصل نیست (${S.eventsErr}) — ساختگی نمایش داده نمی‌شود.` : 'رویدادی برای دو هفته پیش‌رو ثبت نشده.')}</p>`;
+    if (note) note.textContent = '—';
+    return;
+  }
+  const up = upcoming(S.events, 6);
+  list.innerHTML = up.map(eventItemHtml).join('')
+    + `<p class="tiny faint" style="margin:4px 0 0">${U.esc('منبع: data/events.json — برچسب‌دار/شبیه‌سازی؛ در نسخۀ متصل خوانندۀ کدال جایگزین می‌شود.')}</p>`;
+  if (note) note.textContent = `${fmtNum(up.length)} رویداد پیش‌رو`;
+}
+
+function renderAlertList() {
+  const el = U.$('#alert-list');
+  if (!el) return;
+  if (!S.alerts.length) { el.innerHTML = '<span class="tiny faint">هیچ شرطی ثبت نشده.</span>'; return; }
+  el.innerHTML = S.alerts.map((a, i) => `<div class="alert-item" data-i="${i}">
+    <span class="mono" dir="ltr">⚑</span><span>${U.esc(a.raw)}</span>
+    <button class="x" title="حذف" data-rm="${i}">✕</button></div>`).join('');
+}
+
+function fireCheck() {
+  const box = U.$('#alert-fired');
+  if (!box) return;
+  S.fired = checkAlerts(S.alerts, S.rows);
+  if (!S.fired.length) { box.innerHTML = ''; return; }
+  box.innerHTML = S.fired.map(f => `<div class="notice n-ok" style="margin:0">
+      <span class="alert-chip">فعال شد — ${U.esc(alertLabel(f.cond))}</span>
+      <div class="tiny" style="margin-top:6px">${f.hits.map(r => U.esc(alertLine(r, f.cond))).join('<br/>')}</div>
+      <button class="btn-mini" id="al-share" style="margin-top:8px"><span>اشتراک در تلگرام</span></button>
+    </div>`).join('');
+  const sh = U.$('#al-share');
+  if (sh) sh.onclick = () => {
+    const txt = fireText(S.fired, tehranDate());
+    window.open(`https://t.me/share/url?url=${encodeURIComponent('https://tabloradar.ir')}&text=${encodeURIComponent(txt)}`, '_blank', 'noopener');
+  };
+  U.toast(`🔔 ${fmtNum(S.fired.length)} شرط هشدار فعال شد`, 3600);
+}
+
+function addAlert(text) {
+  const c = parseAlert(text);
+  if (!c) throw new Error('شرط خوانده نشد — الگو: «وبملت قدرت خریدار > 1.4» یا «هر نماد حجم مشکوک ≥ 2.5»');
+  S.alerts.push(c); saveAlerts(S.alerts); renderAlertList(); fireCheck();
+  return `شرط ثبت شد: ${c.raw}`;
+}
+
+/* ── مقایسه دو نماد ── */
+function toggleCmp(sym) {
+  const i = S.cmp.indexOf(sym);
+  if (i >= 0) S.cmp.splice(i, 1);
+  else { S.cmp.push(sym); if (S.cmp.length > 2) S.cmp.shift(); }
+  if (S.cmp.length === 2) openCompare(); else closeCompare();
+  const row = S.rows.find(r => r.inst.l18 === S.selected);
+  if (row) U.renderDetail(row, detailOpts());
+}
+const detailOpts = () => ({
+  watchlist: S.watch, onWatch: toggleWatch, events: S.events,
+  cmp: S.cmp, onCmp: toggleCmp,
+});
+function openCompare() {
+  const [a, b] = S.cmp.map(sym => S.rows.find(r => r.inst.l18 === sym) || S.vetoed.find(r => r.inst.l18 === sym));
+  const modal = U.$('#cmp-modal'), scrim = U.$('#cmp-scrim'), body = U.$('#cmp-body');
+  if (!modal || !body) return;
+  if (!a || !b) { closeCompare(); return; }
+  body.innerHTML = compareHtml(a, b, buildCompare(a, b));
+  modal.classList.add('open'); scrim.classList.add('on');
+  requestAnimationFrame(() => drawCompareSpark(U.$('#cmp-spark'), [a, b]));
+}
+function closeCompare() {
+  U.$('#cmp-modal')?.classList.remove('open'); U.$('#cmp-scrim')?.classList.remove('on');
+}
 
 /* ─────────────────────────── ۱. اسکن و رندر ─────────────────────────── */
 
@@ -126,7 +223,7 @@ function renderAll() {
   U.renderSourceChips(S.meta);
   U.renderPulse(S.pulse);
   U.renderTicker(visibleRowsForTicker());
-  U.renderTable(filteredRows(), { sortKey: S.sort.key, sortDir: S.sort.dir, onSort: setSort });
+  U.renderTable(filteredRows(), { sortKey: S.sort.key, sortDir: S.sort.dir, onSort: setSort, events: S.events });
   U.renderHeat(S.sectors, pickSector, S.filter.sector);
   U.renderRadar(S.insts.map(i => ({ inst: i, m: instrumentMetrics(i) })), S.rows);
   U.renderVetoList(S.vetoed);
@@ -134,12 +231,13 @@ function renderAll() {
   U.renderDonut(S.weights);
   U.renderWeightSliders(S.weights, S.rules, onWeightChange);
   const top = S.rows.find(r => r.inst.l18 === S.selected) || S.rows[0];
-  U.renderDetail(top, { watchlist: S.watch, onWatch: toggleWatch });
+  U.renderDetail(top, detailOpts());
   fillSectorFilter();
   renderJSON();
   U.$('#f-count').textContent = S.insts.length
     ? `${fmtNum(filteredRows().length)} از ${fmtNum(S.rows.length)} نمادِ منطبق با فیلتر نمایش داده می‌شود` : '';
   if (!S.rows.some(r => r.veto?.vetoed) && S.meta.live) U.notice('ok', noticeOkHtml());
+  fireCheck();   // سنجه‌های هشدار شرطی روی تازه‌ترین ردیف‌ها
 }
 
 const noticeOkHtml = () => `<b class="up">اسکن کامل شد.</b> ${fmtNum(S.rows.length)} نماد رتبه‌بندی و ${fmtNum(S.vetoed.length)} نماد وتو شد.
@@ -237,7 +335,7 @@ function toggleWatch(sym) {
   S.watch = S.watch.includes(sym) ? S.watch.filter(x => x !== sym) : [...S.watch, sym];
   try { localStorage.setItem('tr.watch', JSON.stringify(S.watch)); } catch { /* noop */ }
   U.toast(S.watch.includes(sym) ? `${sym} به دیده‌بان اضافه شد` : `${sym} از دیده‌بان حذف شد`);
-  U.renderDetail(S.rows.find(r => r.inst.l18 === S.selected) || S.rows[0], { watchlist: S.watch, onWatch: toggleWatch });
+  U.renderDetail(S.rows.find(r => r.inst.l18 === S.selected) || S.rows[0], detailOpts());
 }
 
 /* ─────────────────────────── ۳. زمان‌بندی ─────────────────────────── */
@@ -337,7 +435,7 @@ function telegramText() {
 /* ─────────────────────────── ۵. CLI مرورگر ─────────────────────────── */
 
 const CLI = {
-  help: () => `دستورات: help · top [n] · sort <key> · filter power|inflow|limit|queue <op> <عدد> · sector <نام> · explain <نماد> · watch <نماد> · weights [T S M L R] · rules [minVal] · export csv|json · refresh · clear`,
+  help: () => `دستورات: help · top [n] · sort <key> · filter power|inflow|limit|queue <op> <عدد> · sector <نام> · explain <نماد> · watch <نماد> · weights [T S M L R] · rules [minVal] · export csv|json · alert add|list|rm <i>|clear · compare <نماد۱> <نماد۲> · report · refresh · clear`,
   top: a => U.renderTable((setTopN(+a[0] || 10), filteredRows()), sortOpts()),
   sort: a => { if (a[0]) { S.sort.key = a[0]; S.sort.dir = a[1] === 'asc' ? 1 : -1; renderAll(); } return `مرتب‌سازی: ${S.sort.key} ${S.sort.dir > 0 ? 'asc' : 'desc'}`; },
   filter: a => {
@@ -353,7 +451,7 @@ const CLI = {
   explain: a => {
     const r = S.rows.find(x => x.inst.l18 === a[0]);
     if (!r) return `نماد ${U.esc(a[0] || '')} در فهرست رتبه‌بندی‌شده نیست`;
-    U.renderDetail(r, { watchlist: S.watch, onWatch: toggleWatch }); showView('table');
+    U.renderDetail(r, detailOpts()); showView('table');
     return `${r.inst.l18} — امتیاز ${r.score.total} · اطمینان ${r.score.confidence}%\n` + (r.reasons || []).map(x => `• ${x.text}`).join('\n');
   },
   watch: a => { if (a[0]) toggleWatch(a[0]); return `دیده‌بان: ${S.watch.join(', ') || '—'}`; },
@@ -368,6 +466,25 @@ const CLI = {
     return 'export csv|json';
   },
   refresh: () => { scan({ manual: true }); return 'واکشی آغاز شد …'; },
+  alert: a => {
+    const sub = (a[0] || 'list').toLowerCase();
+    if (sub === 'add') { const txt = a.slice(1).join(' '); if (!txt) return 'alert add <شرط> — مثال: alert add وبملت قدرت خریدار > 1.4'; return addAlert(txt); }
+    if (sub === 'rm' || sub === 'remove') { const i = +a[1]; if (!(i >= 0) || !S.alerts[i]) return 'alert rm <شماره‌ردیف list>'; const [gone] = S.alerts.splice(i, 1); saveAlerts(S.alerts); renderAlertList(); return `حذف شد: ${gone.raw}`; }
+    if (sub === 'clear') { S.alerts = []; saveAlerts(S.alerts); renderAlertList(); return 'همه هشدارها پاک شد'; }
+    if (!S.alerts.length) return 'هیچ هشدار فعالی نیست — «alert add فولاد ظرفیت > 60»';
+    return S.alerts.map((c, i) => `${i}. ${c.raw}${checkAlerts([c], S.rows).length ? '  ← فعال است' : ''}`).join('\n');
+  },
+  compare: a => {
+    const [x, y] = a;
+    if (!x || !y) return 'compare <نماد۱> <نماد۲>';
+    const ok = s => (s ? (S.rows.find(r => r.inst.l18 === s) ? '✓' : '⚠ وتو/ناشناخته') : '✗');
+    S.cmp = [x, y];
+    openCompare();
+    return `مقایسۀ ${x} ↔ ${y} باز شد · دسترس: ${ok(x)} ${ok(y)}`;
+  },
+  report: () => { refreshLab(); return S.report
+    ? `کارنامه ✓ · تولید ${S.report.generated_at} · داوری: ${S.report.verdict?.fa || '—'}`
+    : `کارنامۀ آماده‌ای نیست (${S.reportErr || '—'}) — بسازید: python3 main.py --offline --backtest`; },
   clear: () => { U.$('#term-body').innerHTML = ''; return null; },
 };
 const setTopN = nn => { S.filter.top = nn; U.$('#f-top').value = String(nn); };
@@ -391,6 +508,7 @@ const TOUR = [
   { sel: '#detail-panel', t: 'کالبدشکافی و نقشه', d: 'پنج عامل، دلیل‌های فارسی، محدوده ورود، حد ضرر و پله‌های هدف — همراه با تعداد جلسات لازم.' },
   { sel: '#view-heat', t: 'هیت‌مپ صنایع', d: 'بازار ایران صنعت‌محور است: کلیک روی یک کاشی، کل جدول را روی همان صنعت فیلتر می‌کند.' },
   { sel: '#w-sliders', t: 'سناریوی وزن‌ها', d: 'مدل جعبه سیاه نیست. وزن خودتان را بدهید و ببینید چه می‌شود.' },
+  { sel: '#sc-card', t: 'کارنامۀ مدل', d: 'خودِ ادعا هم سنجیده می‌شود: walk-forward روی تاریخچه، hit-rate سه‌جلسه‌ای و مازاد بر بازار — پیش از آن‌که به امتیاز اعتماد کنید، کارنامه را ببینید.' },
   { sel: '#view-radar', t: 'رادار صف و کد‌به‌کد', d: 'سنگین‌ترین صف‌های خرید، الگوهای کد‌به‌کد و نمادهای منتظر تایید فردا.' },
   { sel: '#data', t: 'شفافیت داده', d: 'منبع، زمان، مسیر و فیلدهای غایب همیشه اعلام می‌شود.' },
 ];
@@ -444,7 +562,9 @@ function tourStep(i) {
 
 const CODE_LIST = [
   'assets/js/engine.js', 'assets/js/tse.js', 'assets/js/indicators.js',
-  'assets/js/data.js', 'assets/js/ui.js', 'assets/js/app.js', 'server.py', 'main.py',
+  'assets/js/data.js', 'assets/js/ui.js', 'assets/js/scorecard.js', 'assets/js/alerts.js',
+  'assets/js/events.js', 'assets/js/compare.js', 'assets/js/app.js', 'server.py', 'main.py',
+  'tsepy/scoring_engine.py', 'tsepy/backtest.py',
 ];
 
 /** فایل‌های واقعی ریپو را می‌خواند؛ اگر باندل آفلاین ساخته شده باشد از همان استفاده می‌شود */
@@ -495,7 +615,7 @@ function heroCanvas() {
   const ctx = cv.getContext('2d');
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const CW = 9, GAP = 7, STEP = CW + GAP;
-  let W = 0, H = 0, dpr = 1, candles = [], off = 0, price = 100;
+  let W = 0, H = 0, dpr = 1, candles = [], off = 0, price = 100, t = 0;
   const next = () => {
     const o = price, c = o + (Math.random() - 0.44) * 4.2;
     price = c;
@@ -505,8 +625,50 @@ function heroCanvas() {
     dpr = Math.min(devicePixelRatio || 1, 2);
     W = cv.clientWidth; H = cv.clientHeight;
     cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildNet();
+  };
+  /* —— حالت دوم بوم: شبکه عصبی (تصویرسازی معماری پنج‌عاملی؛ نه مدل آموزشی فعال) —— */
+  let net = null;
+  const buildNet = () => {
+    const layers = [4, 6, 6, 5, 3, 1];                       // ورودی‌ها → پنج عامل → درجه
+    const nodes = layers.map((n, li) => Array.from({ length: n }, (_, ni) => ({
+      x: W * (0.1 + 0.8 * (li / (layers.length - 1))),
+      y: H / 2 + (ni - (n - 1) / 2) * Math.max(26, (H * 0.72) / Math.max(n, 5)),
+    })));
+    const edges = [];
+    for (let li = 0; li < nodes.length - 1; li++)
+      for (const a of nodes[li]) for (const b of nodes[li + 1])
+        edges.push({ a, b, w: Math.random() });              // وزن نمایشی
+    net = { nodes, edges };
+  };
+  const drawNet = () => {
+    if (!net) return;
+    ctx.clearRect(0, 0, W, H);
+    const pulsePos = (t % 160) / 160;
+    for (const e of net.edges) {
+      const strong = e.w > 0.72;
+      ctx.strokeStyle = strong ? 'rgba(22,224,140,.22)' : 'rgba(148,163,184,.06)';
+      ctx.lineWidth = strong ? 1.1 : 0.6;
+      ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke();
+      if (strong) {
+        const px = e.a.x + (e.b.x - e.a.x) * pulsePos, py = e.a.y + (e.b.y - e.a.y) * pulsePos;
+        ctx.fillStyle = 'rgba(76,201,255,.5)';
+        ctx.beginPath(); ctx.arc(px, py, 1.4, 0, 7); ctx.fill();
+      }
+    }
+    net.nodes.forEach((L, li) => L.forEach(nd => {
+      const beat = 1 + 0.14 * Math.sin(t / 24 + nd.y / 34 + li);
+      const r = (li === net.nodes.length - 1 ? 5.4 : 3.4) * beat;
+      ctx.fillStyle = li === 0 ? 'rgba(76,201,255,.75)'
+        : li === net.nodes.length - 1 ? 'rgba(22,224,140,.9)' : 'rgba(155,140,255,.6)';
+      ctx.beginPath(); ctx.arc(nd.x, nd.y, r, 0, 7); ctx.fill();
+    }));
+    ctx.fillStyle = 'rgba(233,239,249,.34)'; ctx.font = '10px monospace';
+    ctx.fillText('4 inputs · 5 factors · grade', 14, 18);
+    t++;
   };
   const draw = () => {
+    if (S.heroMode === 'net') return drawNet();
     ctx.clearRect(0, 0, W, H);
     ctx.strokeStyle = 'rgba(148,163,184,.05)'; ctx.lineWidth = 1;
     for (let gy = 0; gy < H; gy += 64) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
@@ -527,17 +689,55 @@ function heroCanvas() {
   resize();
   for (let i = 0; i < 240; i++) next();
   addEventListener('resize', resize);
+  const btn = U.$('#hero-mode');
+  const syncBtn = () => { if (btn) btn.innerHTML = S.heroMode === 'net'
+    ? '<i data-lucide="candlestick-chart" style="width:16px;height:16px"></i> بوم: کندل‌ها'
+    : '<i data-lucide="network" style="width:16px;height:16px"></i> بوم: شبکه عصبی'; U.icons(); };
+  btn?.addEventListener('click', () => {
+    S.heroMode = S.heroMode === 'net' ? 'candles' : 'net';
+    try { localStorage.setItem('tr.hero', S.heroMode); } catch { /* بی‌اهمیت */ }
+    cv.classList.toggle('net', S.heroMode === 'net');
+    syncBtn();
+    if (reduce) draw();   // در حالت کم‌تحرک، انیمیشنی نیست؛ خودِ کلیک یک فریم می‌کشد
+  });
+  syncBtn(); cv.classList.toggle('net', S.heroMode === 'net');
   if (reduce) { draw(); return; }
   const loop = () => {
-    draw(); off -= 0.42;
-    if (off <= -STEP) { off += STEP; candles.shift(); next(); }
-    while (candles.length * STEP + off < W + STEP * 2) next();
+    draw();
+    if (S.heroMode !== 'net') {
+      off -= 0.42;
+      if (off <= -STEP) { off += STEP; candles.shift(); next(); }
+      while (candles.length * STEP + off < W + STEP * 2) next();
+    }
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
 }
 
-/* ─────────────────────────── ۹. بوت ─────────────────────────── */
+/* ─────────────────────────── ۹. سیم‌کشی میز پژوهش ─────────────────────────── */
+
+function wireLab() {
+  refreshLab();
+  const reload = () => { refreshLab(); U.toast('کارنامه و رویدادها بازخوانی شد'); };
+  U.$('#sc-refresh')?.addEventListener('click', reload);
+  U.$('#sc-refresh')?.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); reload(); } });
+  const input = U.$('#alert-add'), addBtn = U.$('#alert-add-btn');
+  const add = () => {
+    if (!input || !input.value.trim()) return;
+    try { U.termLog('OK', addAlert(input.value)); input.value = ''; }
+    catch (e) { U.termLog('ERROR', String(e.message || e)); }
+  };
+  addBtn?.addEventListener('click', add);
+  input?.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+  U.$('#alert-list')?.addEventListener('click', e => {
+    const b = e.target.closest('[data-rm]'); if (!b) return;
+    S.alerts.splice(+b.dataset.rm, 1); saveAlerts(S.alerts); renderAlertList(); fireCheck();
+  });
+  U.$('#cmp-close')?.addEventListener('click', closeCompare);
+  U.$('#cmp-scrim')?.addEventListener('click', closeCompare);
+}
+
+/* ─────────────────────────── ۱۰. بوت ─────────────────────────── */
 
 (function wire() {
   /* تب‌های نما */
@@ -566,7 +766,7 @@ function heroCanvas() {
     U.$$('#signal-rows tr').forEach(x => x.classList.remove('active'));
     tr.classList.add('active');
     const row = filteredRows()[+tr.dataset.r];
-    if (row) { S.selected = row.inst.l18; U.renderDetail(row, { watchlist: S.watch, onWatch: toggleWatch }); }
+    if (row) { S.selected = row.inst.l18; U.renderDetail(row, detailOpts()); }
   });
   U.$('#live-notice')?.addEventListener('click', e => { if (e.target.closest('#nt-refresh')) scan({ manual: true }); });
   U.$('#detail-panel')?.addEventListener('click', e => { if (e.target.closest('#dp-retry')) scan({ manual: true }); });
@@ -627,7 +827,7 @@ function heroCanvas() {
     if (e.key === 't') tourStep(tourIdx + 1);
     if (e.key === '/') { e.preventDefault(); U.$('#f-q')?.focus(); }
     if (e.key === 'r') scan({ manual: true });
-    if (e.key === 'Escape') tourStep(-1);
+    if (e.key === 'Escape') { tourStep(-1); closeCompare(); }
   });
 
   /* ناوبری، نمایان‌سازی، scroll-spy */
@@ -643,7 +843,7 @@ function heroCanvas() {
     if (!e.isIntersecting) return;
     U.$$('.navlink').forEach(a => a.classList.toggle('active', a.getAttribute('href') === `#${e.target.id}`));
   }), { rootMargin: '-40% 0px -55% 0px' });
-  ['pulse', 'signals', 'engine', 'pipeline', 'data', 'code'].forEach(id => { const el = document.getElementById(id); if (el) spy.observe(el); });
+  ['pulse', 'signals', 'engine', 'scorecard', 'pipeline', 'data', 'code'].forEach(id => { const el = document.getElementById(id); if (el) spy.observe(el); });
 
   /* تیکر: pause با لمس */
   const tk = U.$('.ticker');
@@ -658,6 +858,7 @@ function heroCanvas() {
   U.renderPipeline();
   codeViewer();
   heroCanvas();
+  wireLab();
   U.icons();
   document.title = `${tehranDate()} — تابلورادار`;
 
