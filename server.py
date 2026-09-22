@@ -2,14 +2,21 @@
 """
 server.py — سرور محلی تابلورادار (کتابخانه استاندارد پایتون، بدون وابستگی)
 
-دو کار می‌کند:
+سه کار می‌کند:
   ۱) سرو فایل‌های استاتیک ریپو (داشبورد) روی 0.0.0.0
-  ۲) پروکسی امن داده:   /api/market   /api/history   /api/info/<insCode>
-     کلید BrsApi از محیط خوانده می‌شود و **هرگز به مرورگر داده نمی‌شود**؛
-     همچنین مشکل CORS مرورگر را حذف می‌کند.
+  ۲) پروکسی دادهٔ **واقعی** و بدون کلید در کلاینت:
+       /api/market            → زنجیرهٔ منابع: BrsApi (در صورت کلید) → TSETMC → بورس‌تریدر → اسنپ‌شات محلی
+       /api/history?insCode=… → تاریخچهٔ تعدیل‌شدهٔ TSETMC (chart/Financial) با کش دیسکی
+       /api/info/<insCode>    → شناسنامهٔ نماد (TSETMC)
+       /api/symbol/<l18>      → تابلوی کامل نماد از bourse-trader.ir (P/E، EPS، شناوری، دفتر سفارش)
+       /api/overview          → نبض بازار از bourse-trader.ir (شاخص‌ها، صف‌ها، پول حقیقی)
+       /api/sources           → آزمون زندهٔ دسترسی منابع
+       /api/health            → وضعیت سرور و کلیدها
+  ۳) برچسب‌گذاری شفاف: هر پاسخ، «نوع داده» (live / live-partial / simulated) و منبع را
+     در بدنه و هدرهای X-Data-* برمی‌گرداند تا داشبورد هرگز دادهٔ ساختگی را زنده جا نزند.
 
    BRS_API_KEY=xxxx python3 server.py            # پورت پیش‌فرض ۸۰۰۰
-   python3 server.py --port 8080 --no-upstream   # فقط استاتیک (حالت آفلاین)
+   python3 server.py --port 8080 --no-upstream   # فقط استاتیک + اسنپ‌شات محلی
 """
 from __future__ import annotations
 
@@ -29,21 +36,33 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-HIST_DIR = ROOT / "data" / "history"      # کش دیسکی تاریخچه (هفتۀ ۳ نقشه راه)
+sys.path.insert(0, str(ROOT))
+
+from tsepy import bourse_trader as BT      # noqa: E402  (خوانندهٔ bourse-trader.ir)
+from tsepy import tsetmc_live as TL        # noqa: E402  (کلاینت رسمی TSETMC)
+
+HIST_DIR = ROOT / "data" / "history"      # کش دیسکی تاریخچه
 HIST_TTL = 7 * 86400                      # هفته‌ای یک‌بار تازه‌سازی
-MEM_TTL = 1800                            # کش درون‌فرآیندی برای کاهش فشار لحظه‌ای
+MEM_TTL = 1800                            # کش درون‌فرآیندی
+SNAPSHOT = ROOT / "data" / "offline-snapshot.json"
 BRS_BASE = os.environ.get("BRS_API_BASE", "https://Api.BrsApi.ir/Tsetmc/")
 TSETMC_CDN = os.environ.get("TSETMC_CDN", "https://cdn.tsetmc.com/api/")
-TSETMC_LEGACY = "https://service.tsetmc.com/tsev2/data/"
-UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 TabloRadar/3.0"}
-TIMEOUT = float(os.environ.get("TR_TIMEOUT", "12"))
+TSETMC_LEGACY = "https://old.tsetmc.com/tsev2/data/"
+UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 TabloRadar/3.2"}
+TIMEOUT = float(os.environ.get("TR_TIMEOUT", "15"))
 
 _cache: dict[str, tuple[float, object]] = {}
 _lock = threading.Lock()
 
 
+def hdr(value) -> str:
+    """هدرهای HTTP باید latin-1 باشند؛ برچسب‌های فارسی درصد-کد می‌شوند."""
+    text = str(value)
+    return text if text.isascii() else urllib.parse.quote(text, safe=" ()+,.:/=-_[]")
+
+
 def cached(key: str, ttl: float, fetch):
-    """حافظه نهان درون‌فرآیندی با TTL — کاهش فشار بر سرویس بازار."""
+    """حافظهٔ نهان درون‌فرآیندی با TTL — کاهش فشار بر سرویس بازار."""
     now = time.time()
     with _lock:
         hit = _cache.get(key)
@@ -61,52 +80,147 @@ def http_get(url: str, accept: str = "application/json,*/*") -> str:
         return res.read().decode("utf-8", "replace")
 
 
-def try_sources(make_urls) -> tuple[str, str]:
-    """اولین پاسخ موفق از میان چند URL را برمی‌گرداند: (متن, منبع)"""
-    errs = []
-    for url, label in make_urls():
+# ─────────────────────────── منابع داده ───────────────────────────
+# هر منبع یک «پاکت» یکنواخت برمی‌گرداند:
+#   {kind, source, as_of, instruments:[…], indices:{…}, market_state:{…}, quality:{…}}
+
+def source_brsapi() -> dict:
+    """BrsApi — فقط اگر کلید محیطی تنظیم شده باشد (کلید هرگز به مرورگر نمی‌رود)."""
+    key = os.environ.get("BRS_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("کلید BrsApi تنظیم نشده")
+    urls = [
+        f"{BRS_BASE}AllSymbols.php?key={urllib.parse.quote(key)}&type=1",
+        f"https://BrsApi.ir/Api/Tsetmc/AllSymbols.php?key={urllib.parse.quote(key)}&type=1",
+    ]
+    last = None
+    for url in urls:
         try:
             body = http_get(url)
-            if body.strip():
-                return body, label
-            errs.append(f"{label}: empty")
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as e:
-            errs.append(f"{label}: {type(e).__name__} {e}".strip()[:180])
-    raise RuntimeError(" | ".join(errs) or "هیچ منبعی پاسخ نداد")
+            js = json.loads(body)
+            rows = js if isinstance(js, list) else (js.get("data") or js.get("result") or js.get("rows") or [])
+            if isinstance(rows, list) and len(rows) > 30:
+                for r in rows:
+                    r.setdefault("provenance", "brsapi")
+                    r.setdefault("synthetic", False)
+                return {"kind": "live", "source": "BrsApi (AllSymbols type=1)", "as_of": "",
+                        "instruments": rows, "indices": {}, "market_state": {},
+                        "quality": {"instruments": len(rows), "provider": "brsapi"}}
+            last = f"پاسخ کوتاه ({len(rows) if isinstance(rows, list) else '?'} ردیف)"
+        except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError, TimeoutError) as e:
+            last = f"{type(e).__name__}: {e}"
+    raise RuntimeError(last or "BrsApi پاسخ نداد")
 
 
-# ─────────────────────────── منابع داده ───────────────────────────
+def source_tsetmc() -> dict:
+    """TSETMC — قیمت/دفتر سفارش + حقیقی‑حقوقی، بدون کلید و برای کل بازار."""
+    mw = TL.market_watch_init(TIMEOUT)
+    try:
+        clients = TL.client_type_all(TIMEOUT)
+    except Exception:  # noqa: BLE001 — نبودِ حقیقی/حقوقی نباید کل منبع را بیندازد
+        clients = {}
+    rows = TL.build_instruments(mw, clients)
+    if len(rows) < 30:
+        raise RuntimeError(f"پاسخ TSETMC کوتاه بود ({len(rows)} ردیف)")
+    st = mw.get("market_state", {})
+    as_of = " ".join(x for x in (st.get("datetime_jalali"), st.get("datetime_time")) if x) \
+        or st.get("datetime_raw") or ""
+    indices = {}
+    if st.get("index_total"):
+        indices["index_total"] = {"fa": "شاخص کل بورس", "value": st.get("index_total"),
+                                  "chg_pct": st.get("index_change_pct")}
+    return {
+        "kind": "live", "source": "TSETMC (MarketWatchInit + ClientTypeAll)", "as_of": as_of,
+        "instruments": rows, "indices": indices, "market_state": st,
+        "quality": {"instruments": len(rows),
+                    "with_client_types": sum(1 for r in rows if "Buy_I_Volume" in r),
+                    "with_order_book": sum(1 for r in rows if "qd1" in r)},
+    }
 
 
-def upstream_market() -> tuple[str, str]:
-    key = os.environ.get("BRS_API_KEY", "").strip()
+def source_bourse_trader() -> dict:
+    """بورس‌تریدر — منبع پشتیبان: نبض بازار + تابلوهای نمادهای پرگردش (پوشش جزئی، صریح)."""
+    ov = BT.market_overview()
+    rows: list[dict] = []
+    symbols = [i.get("symbol") for i in (ov.get("top_inflow") or [])[:6] +
+               (ov.get("top_outflow") or [])[:4] if i.get("symbol")]
+    for sym in dict.fromkeys(symbols):          # حداکثر ۱۰ نماد، بدون تکرار
+        if not sym:
+            continue
+        try:
+            snap = BT.fetch_symbol(sym)
+        except Exception:  # noqa: BLE001
+            continue
+        row = {k: v for k, v in snap.items()
+               if k not in ("raw_found", "ambiguous", "source", "symbol")}
+        row.update({"l18": sym, "provenance": "bourse-trader", "synthetic": False,
+                    "partial": True, "netRealMoneyToday": item.get("money_rial")})
+        rows.append(row)
+    if len(rows) < 5:
+        raise RuntimeError(f"بورس‌تریدر فقط {len(rows)} نماد داد")
+    indices = {}
+    if ov.get("index_total"):
+        indices["index_total"] = {"fa": "شاخص کل بورس", "value": ov["index_total"], "chg_pct": None}
+    if ov.get("market_cap"):
+        indices["market_cap"] = {"fa": "ارزش بازار (ریال)", "value": ov["market_cap"], "chg_pct": None}
+    return {
+        "kind": "live-partial",
+        "source": f"bourse-trader.ir (پوشش جزئی: {len(rows)} نماد پرگردش)",
+        "as_of": time.strftime("%Y-%m-%d %H:%M"),
+        "instruments": rows, "indices": indices, "market_state": {},
+        "market_overview": ov,
+        "quality": {"instruments": len(rows), "partial": True},
+    }
 
-    def urls():
-        if key:
-            yield f"{BRS_BASE}AllSymbols.php?key={urllib.parse.quote(key)}&type=1", "BrsApi"
-            yield f"https://BrsApi.ir/Api/Tsetmc/AllSymbols.php?key={urllib.parse.quote(key)}&type=1", "BrsApi-alt"
-        yield f"{TSETMC_LEGACY}instinfodata.aspx?t=PhantomTopsSet", "TSETMC-legacy"
-        yield f"{TSETMC_CDN}MarketWatch/GetMarketWatchTables/0", "TSETMC-cdn"
 
-    return try_sources(urls)
+def source_snapshot() -> dict:
+    """اسنپ‌شات محلی — اگر دادهٔ واقعیِ ثبت‌شده باشد kind=live، وگرنه simulated (صریح)."""
+    if not SNAPSHOT.is_file():
+        raise RuntimeError("اسنپ‌شات محلی موجود نیست")
+    data = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+    kind = data.get("data_kind") or ("simulated" if data.get("simulated_fields") else "live-partial")
+    rows = data.get("instruments", [])
+    return {
+        "kind": kind, "source": f"اسنپ‌شات محلی ({data.get('as_of', '—')})",
+        "as_of": data.get("as_of", ""), "instruments": rows,
+        "indices": data.get("indices", {}) or {}, "market_state": {},
+        "disclaimer": data.get("disclaimer", ""),
+        "simulated_fields": data.get("simulated_fields"),
+        "quality": {"instruments": len(rows), "snapshot": True},
+    }
 
 
-def upstream_history(l18: str | None, ins_code: str | None, days: int) -> tuple[str, str]:
-    key = os.environ.get("BRS_API_KEY", "").strip()
+PROVIDERS = (
+    ("brsapi", source_brsapi),
+    ("tsetmc", source_tsetmc),
+    ("bourse-trader", source_bourse_trader),
+    ("snapshot", source_snapshot),
+)
 
-    def urls():
-        if ins_code:
-            yield (f"{TSETMC_CDN}ClosingPrice/GetClosingPriceInfoList/{ins_code}/{days}", "TSETMC-history")
-        if l18 and key:
-            yield f"{BRS_BASE}History.php?key={urllib.parse.quote(key)}&type=0&l18={urllib.parse.quote(l18)}", "BrsApi-history"
-        if l18:
-            yield f"{TSETMC_LEGACY}InstrumentUse.aspx?method=OHLC2&instruments={urllib.parse.quote(l18)}&start={days}", "TSETMC-ohlc"
 
-    return try_sources(urls)
+def market_envelope() -> tuple[dict, list[str]]:
+    """اولین منبع زندهٔ موفق؛ در نبود شبکه، اسنپ‌شات محلی (با برچسب صریح)."""
+    log: list[str] = []
+    for name, fn in PROVIDERS:
+        if name == "snapshot":
+            try:
+                return fn(), log + ["snapshot:ok"]
+            except Exception as e:  # noqa: BLE001
+                log.append(f"snapshot:{type(e).__name__}")
+                break
+        try:
+            env = cached(f"market:{name}", 45 if name != "bourse-trader" else 180, fn)
+            return env, log + [f"{name}:ok"]
+        except Exception as e:  # noqa: BLE001
+            log.append(f"{name}:{str(e)[:80]}")
+    # اگر هیچ منبع زنده‌ای نبود، همان اسنپ‌شات (حتی simulated) تا داشبورد خالی نماند
+    try:
+        return source_snapshot(), log + ["fallback-snapshot"]
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(" | ".join(log + [f"snapshot:{e}"])) from e
 
 
 # ─────────────────────────── کش دیسکی تاریخچه ───────────────────────────
-
 
 def hist_key(l18: str | None, ins: str | None, days: int) -> str:
     return f"{ins or l18}-{days}"
@@ -118,7 +232,6 @@ def hist_path(key: str) -> Path:
 
 
 def hist_cache_read(key: str, allow_stale: bool = False):
-    """(body, src, age_s) از دیسک؛ None اگر نبود یا (و allow_stale نه) کهنه بود."""
     p = hist_path(key)
     if not p.is_file():
         return None
@@ -139,15 +252,34 @@ def hist_cache_write(key: str, body: str, src: str) -> None:
             json.dumps({"cached_at": time.time(), "src": src, "body": body}, ensure_ascii=False),
             encoding="utf-8")
     except OSError:
-        pass   # کش اختیاری است؛ نوشتن ناموفق نباید سرویس را بشکند
+        pass   # کش اختیاری است
+
+
+def history_upstream(l18: str | None, ins: str | None, days: int) -> tuple[str, str]:
+    """تاریخچهٔ واقعی: TSETMC chart/Financial → BrsApi (اگر کلید) → برچسب منبع."""
+    errs: list[str] = []
+    if ins:
+        try:
+            bars = TL.daily_history(ins, days, TIMEOUT)
+            if len(bars) >= 20:
+                return json.dumps(bars, ensure_ascii=False), "TSETMC-chart"
+            errs.append(f"TSETMC-chart:{len(bars)} کندل")
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"TSETMC-chart:{type(e).__name__}")
+    key = os.environ.get("BRS_API_KEY", "").strip()
+    if l18 and key:
+        try:
+            body = http_get(f"{BRS_BASE}History.php?key={urllib.parse.quote(key)}"
+                            f"&type=0&l18={urllib.parse.quote(l18)}")
+            return body, "BrsApi-history"
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"BrsApi:{type(e).__name__}")
+    raise RuntimeError(" | ".join(errs) or "منبع تاریخچه در دسترس نیست")
 
 
 def history_lookup(l18: str | None, ins: str | None, days: int,
-                   allow_net: bool = True) -> tuple[str, str, str, str | None]:
-    """ترتیب اولویت: حافظۀ درون‌فرآیندی ← دیسک (تازه) ← شبکه ← دیسک (کهنه، STALE).
-
-    برمی‌گرداند: (body, src, xcache, err) — xcache ∈ {mem, disk, net, disk-stale, None}
-    """
+                   allow_net: bool = True) -> tuple[str, str, str | None, str | None]:
+    """ترتیب: حافظهٔ درون‌فرآیندی ← دیسک تازه ← شبکه ← دیسک کهنه. (body, src, xcache, err)"""
     key = hist_key(l18, ins, days)
     now = time.time()
     with _lock:
@@ -156,13 +288,12 @@ def history_lookup(l18: str | None, ins: str | None, days: int,
         return hit[1][0], hit[1][1], "mem", None
     fresh = hist_cache_read(key)
     if fresh:
-        body, src, _age = fresh
         with _lock:
-            _cache["hist:" + key] = (now, (body, src))
-        return body, src, "disk", None
+            _cache["hist:" + key] = (now, (fresh[0], fresh[1]))
+        return fresh[0], fresh[1], "disk", None
     if allow_net:
         try:
-            body, src = upstream_history(l18, ins, days)
+            body, src = history_upstream(l18, ins, days)
             hist_cache_write(key, body, src)
             with _lock:
                 _cache["hist:" + key] = (now, (body, src))
@@ -172,7 +303,7 @@ def history_lookup(l18: str | None, ins: str | None, days: int,
             if stale:
                 return stale[0], f"{stale[1]} (کهنه {int(stale[2] / 86400)} روزه)", "disk-stale", None
             return "", "", None, str(e)[:600]
-    stale = hist_cache_read(key, allow_stale=True)   # --no-upstream هم کش کهنه را با برچسب می‌دهد
+    stale = hist_cache_read(key, allow_stale=True)
     if stale:
         return stale[0], f"{stale[1]} (کهنه {int(stale[2] / 86400)} روزه)", "disk-stale", None
     return "", "", None, "upstream disabled (--no-upstream) و کش دیسکی خالی است"
@@ -180,29 +311,25 @@ def history_lookup(l18: str | None, ins: str | None, days: int,
 
 # ─────────────────────────── هندلر HTTP ───────────────────────────
 
-
 class Handler(SimpleHTTPRequestHandler):
-    server_version = "TabloRadar/3.1"
+    server_version = "TabloRadar/3.2"
 
-    def log_message(self, fmt, *args):  # لاگ کوتاه‌تر و خوانا
+    def log_message(self, fmt, *args):
         sys.stderr.write(f"  {time.strftime('%H:%M:%S')}  {fmt % args}\n")
 
-    def _json(self, code: int, payload: dict):
+    def _json(self, code: int, payload: dict, extra: dict | None = None):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("Access-Control-Allow-Origin", "*")
+        for k, v in (extra or {}).items():
+            self.send_header(k, hdr(v))
         self.end_headers()
         self.wfile.write(body)
 
     def _redirect_into_app(self):
-        """وقتی ریشه سرو از بالای پوشه کاری است، «/» را به اپلیکیشن می‌فرستد.
-
-        در پیش‌نمایش Arena مسیرها با پیشوند پوشه ریپو می‌آیند
-        (example.preview/TabloRadar/index.html)؛ این کمک کاربر را به همان‌جا می‌رساند.
-        """
         base = Path(self.directory or os.getcwd())
         for child in sorted(base.iterdir()):
             if child.is_dir() and (child / "index.html").exists():
@@ -212,7 +339,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return True
         return False
 
-    def do_GET(self):  # noqa: N802 (امضای کتابخانه استاندارد)
+    def do_GET(self):  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
         path, qs = parsed.path.rstrip("/") or "/", urllib.parse.parse_qs(parsed.query)
         if path in ("", "/") and self._redirect_into_app():
@@ -223,40 +350,41 @@ class Handler(SimpleHTTPRequestHandler):
             return self._api_history(qs)
         if path.startswith("/api/info/"):
             return self._api_info(path.rsplit("/", 1)[-1])
+        if path.startswith("/api/symbol/"):
+            return self._api_symbol(urllib.parse.unquote(path.rsplit("/", 1)[-1]))
+        if path == "/api/overview":
+            return self._api_overview()
+        if path == "/api/sources":
+            return self._api_sources()
         if path == "/api/health":
             return self._json(200, {"ok": True, "upstream": not getattr(self.server, "no_upstream", False),
-                                    "key_configured": bool(os.environ.get("BRS_API_KEY")), "time": time.time()})
+                                    "key_configured": bool(os.environ.get("BRS_API_KEY")),
+                                    "snapshot": SNAPSHOT.name, "time": time.time()})
         return super().do_GET()
 
     # ── /api/market ──
     def _api_market(self):
         if getattr(self.server, "no_upstream", False):
-            return self._json(503, {"error": "upstream disabled (--no-upstream)"})
+            try:
+                env = cached("market:snapshot", 5, source_snapshot)
+            except Exception as e:  # noqa: BLE001
+                return self._json(503, {"error": str(e)[:300]})
+            env["source"] = f"{env['source']} — upstream غیرفعال"
+            return self._json(200, env, {"X-Data-Kind": env["kind"], "X-Data-Source": env["source"]})
         try:
-            body, src = cached("market", self.server.ttl_market, upstream_market)
-        except Exception as e:  # هر خطای شبکه → ۵۰۲ با پیام قابل‌دیباگ
+            env, log = market_envelope()
+        except Exception as e:  # noqa: BLE001
             return self._json(502, {"error": str(e)[:600]})
-        try:
-            json.loads(body)
-            ctype = "application/json; charset=utf-8"
-        except json.JSONDecodeError:
-            ctype = "text/plain; charset=utf-8"  # خروجی JS سرویس قدیمی TSETMC
-        payload = body.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Cache-Control", f"public, max-age={int(self.server.ttl_market)}")
-        self.send_header("X-Data-Source", src)
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+        env = dict(env)
+        env["log"] = log
+        return self._json(200, env, {"X-Data-Kind": env["kind"], "X-Data-Source": env["source"]})
 
-    # ── /api/history — کش دیسکی هفتگی؛ در حالت --no-upstream فقط از کش سرو می‌شود ──
+    # ── /api/history ──
     def _api_history(self, qs):
         l18 = (qs.get("l18") or [None])[0]
         ins = (qs.get("insCode") or [None])[0]
         try:
-            days = max(5, min(int((qs.get("days") or ["260"])[0]), 500))
+            days = max(5, min(int((qs.get("days") or ["260"])[0]), 2000))
         except ValueError:
             days = 260
         if not (l18 or ins):
@@ -265,32 +393,68 @@ class Handler(SimpleHTTPRequestHandler):
         body, src, xcache, err = history_lookup(l18, ins, days, allow_net=allow_net)
         if err:
             return self._json(502, {"error": err})
-        payload = body.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("X-Data-Source", src)
-        self.send_header("X-Cache", xcache or "bypass")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+        # اگر منبع، JSON کندل داد همان را بده؛ در غیر این‌صورت متن خام (سازگاری با کلاینت قدیمی)
+        try:
+            parsed = json.loads(body)
+            payload = {"kind": "live", "source": src, "bars": parsed if isinstance(parsed, list) else parsed}
+        except json.JSONDecodeError:
+            payload = {"kind": "live", "source": src, "raw": body}
+        self._json(200, payload, {"X-Data-Source": src, "X-Cache": xcache or "bypass"})
 
     # ── /api/info/<insCode> ──
     def _api_info(self, ins_code):
         if getattr(self.server, "no_upstream", False):
             return self._json(503, {"error": "upstream disabled"})
         try:
-            body, _ = cached(f"info:{ins_code}", 3600,
-                             lambda: try_sources(lambda: [(f"{TSETMC_CDN}Instrument/GetInstrumentInfo/{ins_code}", "TSETMC")]))
-        except Exception as e:
+            info = cached(f"info:{ins_code}", 3600, lambda: TL.instrument_info(ins_code, TIMEOUT))
+        except Exception as e:  # noqa: BLE001
             return self._json(502, {"error": str(e)[:400]})
-        payload = body.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+        if not info:
+            return self._json(404, {"error": "شناسنامه در دسترس نبود"})
+        return self._json(200, {"kind": "live", "source": "TSETMC InstrumentInfo", "info": info})
+
+    # ── /api/symbol/<l18> ──
+    def _api_symbol(self, l18):
+        if not l18:
+            return self._json(400, {"error": "نماد لازم است"})
+        if getattr(self.server, "no_upstream", False):
+            return self._json(503, {"error": "upstream disabled"})
+        try:
+            snap = cached(f"bt:{l18}", 90, lambda: BT.fetch_symbol(l18, ttl=60.0))
+        except Exception as e:  # noqa: BLE001
+            return self._json(502, {"error": str(e)[:400]})
+        return self._json(200, {"kind": "live", "source": "bourse-trader.ir/symbol", "symbol": l18,
+                                "detail": snap}, {"X-Data-Source": "bourse-trader.ir"})
+
+    # ── /api/overview ──
+    def _api_overview(self):
+        if getattr(self.server, "no_upstream", False):
+            return self._json(503, {"error": "upstream disabled"})
+        try:
+            ov = cached("overview", 90, BT.market_overview)
+        except Exception as e:  # noqa: BLE001
+            return self._json(502, {"error": str(e)[:400]})
+        return self._json(200, {"kind": "live", "source": "bourse-trader.ir", "overview": ov},
+                          {"X-Data-Source": "bourse-trader.ir"})
+
+    # ── /api/sources (آزمون زندهٔ دسترسی) ──
+    def _api_sources(self):
+        if getattr(self.server, "no_upstream", False):
+            return self._json(503, {"error": "upstream disabled"})
+        def probe():
+            out = []
+            for name, fn in PROVIDERS:
+                t0 = time.time()
+                try:
+                    env = fn()
+                    out.append({"provider": name, "ok": True, "kind": env.get("kind"),
+                                "instruments": len(env.get("instruments", [])),
+                                "ms": int((time.time() - t0) * 1000), "source": env.get("source")})
+                except Exception as e:  # noqa: BLE001
+                    out.append({"provider": name, "ok": False, "error": str(e)[:200],
+                                "ms": int((time.time() - t0) * 1000)})
+            return out
+        return self._json(200, {"providers": cached("sources", 300, probe)})
 
 
 def lan_ips() -> list[str]:
@@ -306,29 +470,31 @@ def lan_ips() -> list[str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="TabloRadar — static + safe data proxy")
+    ap = argparse.ArgumentParser(description="TabloRadar — static + live data proxy")
     ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)))
     ap.add_argument("--host", default="0.0.0.0")
-    ap.add_argument("--ttl", type=int, default=45, help="TTL حافظه نهان اسنپ‌شات بازار (ثانیه)")
-    ap.add_argument("--no-upstream", action="store_true", help="فقط استاتیک؛ داده از اسنپ‌شات آفلاین مرورگر")
+    ap.add_argument("--ttl", type=int, default=45, help="TTL حافظهٔ نهان اسنپ‌شات بازار (ثانیه)")
+    ap.add_argument("--no-upstream", action="store_true",
+                    help="فقط استاتیک و اسنپ‌شات محلی (بدون تماس با منابع بیرونی)")
     ap.add_argument("--root", default=str(ROOT), help="پوشه‌ای که فایل‌های استاتیک از آن سرو می‌شود")
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
     handler = functools.partial(Handler, directory=str(root))
     httpd = ThreadingHTTPServer((args.host, args.port), handler)
-    httpd.ttl_market = args.ttl          # type: ignore[attr-defined]
-    httpd.no_upstream = args.no_upstream  # type: ignore[attr-defined]
+    httpd.ttl_market = args.ttl            # type: ignore[attr-defined]
+    httpd.no_upstream = args.no_upstream   # type: ignore[attr-defined]
     httpd.daemon_threads = True
 
     print(f"\n  تابلورادار · http://localhost:{args.port}  (ریشه: {root})")
     for ip in lan_ips():
         print(f"  شبکه محلی      · http://{ip}:{args.port}")
     cached_n = len(list(HIST_DIR.glob("*.json"))) if HIST_DIR.is_dir() else 0
-    print(f"  پروکسی داده    · /api/market /api/history /api/info/<insCode> /api/health")
-    print(f"  کش تاریخچه     · {HIST_DIR} — {cached_n} نماد کش‌شده (TTL ۷ روز؛ در حالت --no-upstream همین کش سرو می‌شود)")
-    print(f"  کلید BrsApi    · {'از محیط خوانده شد' if os.environ.get('BRS_API_KEY') else 'تنظیم نشده (BRS_API_KEY)'}")
+    print("  منابع زنده    · TSETMC (MarketWatchInit/ClientTypeAll/chart) → بورس‌تریدر → اسنپ‌شات")
+    print(f"  کش تاریخچه     · {HIST_DIR} — {cached_n} نماد کش‌شده (TTL ۷ روز)")
+    print(f"  کلید BrsApi    · {'از محیط خوانده شد' if os.environ.get('BRS_API_KEY') else 'تنظیم نشده (اختیاری)'}")
     print(f"  حالت آفلاین    · {'فعال' if args.no_upstream else 'غیرفعال'}")
+    print("  مسیرها         · /api/market /api/history /api/info /api/symbol /api/overview /api/sources /api/health")
     print("  Ctrl+C برای توقف\n")
     try:
         httpd.serve_forever()

@@ -139,6 +139,7 @@ async function scan({ manual = false, withHistory = true } = {}) {
     if (primed?.instruments?.length) {
       S.insts = primed.instruments;
       S.meta = { live: false, source: primed.source, at: new Date(), route: 'حافظه محلی',
+        kind: primed.kind || 'live-partial', simulatedFields: primed.simulatedFields || null,
         historyCount: primed.instruments.filter(i => i.history?.length >= 30).length,
         snapshot: primed.snapshotMeta };
       S.meta.historyOk = S.meta.historyCount > 0;
@@ -163,18 +164,33 @@ async function scan({ manual = false, withHistory = true } = {}) {
     S.insts = res.instruments;
     S.meta = {
       live: res.live, source: res.source, at: new Date(), route: res.route || '',
+      kind: res.kind || (res.live ? 'live' : 'live-partial'),
+      asOf: res.asOf || '', simulatedFields: res.simulatedFields || null,
       historyCount: res.instruments.filter(i => i.history?.length >= 30).length,
       snapshot: res.snapshotMeta || null,
     };
     S.meta.historyOk = S.meta.historyCount > 0;
     S.fetchElapsed = (performance.now() - S.t0) / 1000;
     U.termLog(res.live ? 'OK' : 'WARN',
-      `${res.live ? 'داده زنده دریافت شد' : 'حالت آفلاین — اسنپ‌شات برچسب‌دار'}: ${res.source} · ${fmtNum(S.insts.length)} نماد`);
-    if (!S.meta.live) {
-      U.notice('warn', `<b class="warn">داده زنده در دسترس نبود</b> — داشبورد روی اسنپ‌شات آفلاین اجرا می‌شود
-        (قیمت‌های مرجع واقعی، تفکیک حقیقی/حقوقی و دفتر سفارش نمونه). برای داده زنده، <span class="mono" dir="ltr">python3 server.py</span>
+      `${res.live ? 'داده زنده دریافت شد' : (S.meta.kind === 'simulated' ? 'دادهٔ شبیه‌سازی‌شده (غیرواقعی)' : 'حالت آفلاین')}: ${res.source} · ${fmtNum(S.insts.length)} نماد`);
+    if (S.meta.kind === 'simulated') {
+      const sim = (S.meta.simulatedFields?.simulated || []).slice(0, 6).join('، ');
+      U.notice('fail', `<b class="down">⚠ این داده‌ها واقعی نیستند — شبیه‌سازی‌شده‌اند</b>
+        هیچ منبع زنده‌ای پاسخ نداد، پس داشبورد روی «اسنپ‌شات نمونه» اجرا می‌شود. فقط
+        <b>قیمت پایانی/دیروز، ارزش و تعداد معاملات</b> لنگر خبری دارند؛ ${U.esc(sim)} … ساخته شده‌اند.
+        <div class="tiny" style="margin-top:6px">برای دادهٔ واقعی یکی از این دو کار را انجام دهید:
+          <span class="mono" dir="ltr">python3 tools/fetch_live_snapshot.py</span> (رونوشت واقعی از TSETMC/بورس‌تریدر،
+          حتی برای حالت بی‌شبکه) یا <span class="mono" dir="ltr">python3 server.py</span> (داده زنده در لحظه).
+        </div>`);
+    } else if (!S.meta.live) {
+      U.notice('warn', `<b class="warn">داده زنده در دسترس نبود</b> — داشبورد روی اسنپ‌شات محلی اجرا می‌شود
+        (${U.esc(S.meta.asOf || 'بدون تاریخ')}). برای داده لحظه‌ای <span class="mono" dir="ltr">python3 server.py</span>
         را اجرا کنید یا کلید BrsApi را در بخش «داده و شفافیت» وارد کنید.
         ${S.meta.snapshot ? `<div class="tiny faint" style="margin-top:6px">${U.esc(S.meta.snapshot.disclaimer || '')}</div>` : ''}`);
+    } else if (S.meta.kind === 'live-partial') {
+      U.notice('warn', `<b class="warn">داده واقعی اما جزئی</b> — منبع: ${U.esc(S.meta.source)}.
+        پوشش کامل بازار با TSETMC به دست می‌آید؛ برای دادهٔ کامل/لحظه‌ای
+        <span class="mono" dir="ltr">python3 server.py</span> را اجرا کنید.`);
     }
     S.tAnalyze = performance.now();
     recompute();
@@ -376,6 +392,9 @@ function renderJSON() {
     generated_at: new Date().toISOString(),
     tehran_calendar: tehranDate(),
     source: S.meta.source || '—',
+    data_kind: S.meta.kind || 'live',
+    as_of: S.meta.asOf || '',
+    simulated_fields: S.meta.kind === 'simulated' ? (S.meta.simulatedFields?.simulated || []) : [],
     live: !!S.meta.live,
     market_rules: { price_limit_pct: 3, base_volume: 1, session: '09:00-12:30 + TAL 12:45-13:00' },
     weights: S.weights, rules: S.rules,
@@ -428,6 +447,7 @@ function telegramText() {
   S.rows.slice(0, 10).forEach((r, i) => L.push(
     `${i + 1}. ${r.inst.l18} — ${fmtNum(r.inst.pl)} (${fmtPct(r.metrics.chgLast)}) — امتیاز ${fmtNum(r.score.total, 1)}` +
     (r.plan ? ` — حد ضرر ${fmtNum(r.plan.stop)}` : '')));
+  if (S.meta.kind === 'simulated') L.push('', '⚠ دادهٔ نمایش‌داده‌شده شبیه‌سازی‌شده است (بدون منبع زنده).');
   L.push('', `منبع: ${S.meta.source}`, 'تحلیل داده، نه توصیه سرمایه‌گذاری.', 'https://tabloradar.ir');
   return L.join('\n');
 }

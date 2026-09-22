@@ -495,5 +495,6 @@ def symbol_url(symbol: str) -> str:
 
 
 def fetch_symbol(symbol: str, *, ttl: float = CACHE_TTL) -> dict:
-    """دریافت و پارس تابلوی یک نماد (با کش)."""
-    return symbol_snapshot(page(f"/symbol/{symbol}", ttl), symbol)
+    """دریافت و پارس تابلوی یک نماد (با کش). نام فارسی نماد درصد-کد می‌شود."""
+    path = "/symbol/" + urllib.parse.quote(symbol)
+    return symbol_snapshot(page(path, ttl), symbol)

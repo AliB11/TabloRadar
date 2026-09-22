@@ -463,16 +463,21 @@
       <div class="glass p-6" style="border-radius:18px">
         <b style="font-size:14px">زنجیره منبع</b>
         <ol class="why" style="margin-top:12px;padding-inline-start:0">
-          <li>پروکسی هم‌ریشه <span class="mono" dir="ltr">/api/market</span> — کلید API در سرور می‌ماند، نه در مرورگر</li>
-          <li><span class="mono" dir="ltr">Api.BrsApi.ir</span> با کلید شخصی شما (localStorage، بدون ذخیره در ریپو)</li>
-          <li>سرویس رسمی <span class="mono" dir="ltr">service.tsetmc.com</span> از طریق پراکسی CORS</li>
-          <li>اسنپ‌شات آفلاین برچسب‌دار برای حالت قطعی شبکه</li>
+          <li>پروکسی هم‌ریشه <span class="mono" dir="ltr">/api/market</span> (سرور <span class="mono" dir="ltr">server.py</span>) — TSETMC رسمی → بورس‌تریدر → اسنپ‌شات؛ کلید API در سرور می‌ماند</li>
+          <li>سرویس رسمی TSETMC بدون کلید: <span class="mono" dir="ltr">old.tsetmc.com/tsev2/data/MarketWatchInit.aspx</span> +
+            <span class="mono" dir="ltr">ClientTypeAll.aspx</span> (قیمت، دفتر سفارش ۵ سطحی، حقیقی/حقوقی)</li>
+          <li><span class="mono" dir="ltr">bourse-trader.ir</span> — نبض بازار (شاخص، صف‌ها، ورود پول حقیقی) و تابلوهای عمومی نمادها</li>
+          <li><span class="mono" dir="ltr">Api.BrsApi.ir</span> با کلید شخصی شما (اختیاری؛ localStorage، بدون ذخیره در ریپو)</li>
+          <li>اسنپ‌شات محلی — اگر <b>شبیه‌سازی‌شده</b> باشد با هشدار سرخ اعلام می‌شود و هرگز جای داده زنده جا نمی‌زند</li>
         </ol>
       </div>
       <div class="glass p-6" style="border-radius:18px">
         <b style="font-size:14px">تاریخچه واقعی، نه ساخته‌شده</b>
-        <p class="small muted" style="margin-top:12px">اندیکاتورها روی <span class="mono" dir="ltr">History</span> واقعی TSETMC (تا ۲۶۰ جلسه) محاسبه می‌شوند.
+        <p class="small muted" style="margin-top:12px">اندیکاتورها روی تاریخچهٔ تعدیل‌شدهٔ واقعی
+        (<span class="mono" dir="ltr">members.tsetmc.com/tsev2/chart/data/Financial.aspx</span> یا <span class="mono" dir="ltr">History</span> رسمی TSETMC، تا ۲۶۰ جلسه) محاسبه می‌شوند.
         اگر تاریخچه یک نماد نرسد، عامل تکنیکال <b class="warn">«محاسبه‌نشده»</b> می‌شود و ضریب اطمینان افت می‌کند — هیچ عدد ساختگی جای آن را نمی‌گیرد.</p>
+        <p class="tiny faint" style="margin-top:10px">ابزارها: <span class="mono" dir="ltr">python3 tools/check_data_sources.py</span> (آزمون دسترسی منابع)
+        و <span class="mono" dir="ltr">python3 tools/fetch_live_snapshot.py</span> (رونوشت واقعی برای حالت بی‌شبکه).</p>
       </div>
       <div class="glass p-6" style="border-radius:18px">
         <b style="font-size:14px">واحد و انطباق</b>
