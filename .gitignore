@@ -1,0 +1,15 @@
+# خروجی‌های تولیدشده (با اسکریپت‌های tools/ بازتولید می‌شوند)
+out/
+data/*.tmp
+assets/js/code-bundle.js
+
+# پایتون
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ابزار
+node_modules/
+.DS_Store
+*.log

@@ -1,0 +1,333 @@
+/**
+ * data.js — لایه داده تابلورادار
+ *
+ * زنجیره منبع (از مطمئن‌ترین در دسترس‌ترین):
+ *   ۱) پروکسی هم‌ریشه  /api/*            → سرور `server.py` (بدون CORS، بدون کلید در کلاینت)
+ *   ۲) BrsApi مستقیم (اگر کاربر کلید بدهد) → `Api.BrsApi.ir/Tsetmc/AllSymbols.php`
+ *   ۳) سرویس رسمی TSETMC                  → `service.tsetmc.com/tsev2/data/instinfodata.aspx`
+ *   ۴) پراکسی‌های CORS عمومی              → corsproxy.io / allorigins / codetabs
+ *   ۵) اسنپ‌شات آفلاین `data/offline-snapshot.json` (برچسب‌دار، برای حالت قطعی شبکه)
+ *
+ * تاریخچه قیمت (برای اندیکاتورهای واقعی):
+ *   /api/history?l18=… → cdn.tsetmc.com /api/MarketWatch/GetPriceHistory → BrsApi History.php
+ */
+
+import { normalizeInstrument, normalizeAll, expandHistory } from './tse.js';
+import { toSeries } from './indicators.js';
+
+export const CFG = {
+  brsKey: '',                       // هرگز در ریپو هاردکد نمی‌شود؛ از تنظیمات/محیط
+  brsBase: 'https://Api.BrsApi.ir/Tsetmc/',
+  brsAlt: 'https://BrsApi.ir/Api/Tsetmc/',
+  tsetmcBase: 'https://service.tsetmc.com/tsev2/data/',
+  cdnBase: 'https://cdn.tsetmc.com/api/',
+  timeout: 9000,
+  historyDays: 260,
+  refreshSec: 60,
+};
+
+/* ───────────────── ابزار شبکه ───────────────── */
+
+const cache = new Map();
+const memo = (key, ttl, val) => {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.t < ttl) return hit.v;
+  cache.set(key, { t: Date.now(), v: val });
+  return val;
+};
+
+async function httpJson(url, timeout = CFG.timeout) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json,*/*' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = (await res.text()).trim();
+    if (!text) throw new Error('پاسخ خالی');
+    try { return JSON.parse(text); } catch { return text; }   /* سرویس قدیمی TSETMC متن JS برمی‌گرداند */
+  } finally { clearTimeout(to); }
+}
+
+const PROXIES = [
+  { id: 'corsproxy',  make: u => `https://corsproxy.io/?url=${encodeURIComponent(u)}` },
+  { id: 'allorigins', make: u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
+  { id: 'codetabs',   make: u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}` },
+];
+
+let preferredRoute = null;
+
+/** یک URL را با زنجیره مسیرها (مستقیم → جایگزین → پراکسی CORS) می‌خواند. */
+async function fetchSmart(url, { alt, tag = '', allowProxy = true, timeout = CFG.timeout } = {}) {
+  const sameOrigin = url.startsWith('/');
+  const routes = [];
+  if (alt) routes.push({ id: 'althost', label: 'میزبان جایگزین', fn: () => alt });
+  routes.push({ id: 'direct', label: 'اتصال مستقیم', fn: () => url });
+  if (allowProxy && !sameOrigin) {
+    for (const p of PROXIES) routes.push({ id: p.id, label: `پراکسی ${p.id}`, fn: () => p.make(url) });
+  }
+  const _timeout = timeout;
+
+  const ordered = preferredRoute ? [routes.find(r => r.id === preferredRoute), ...routes.filter(r => r.id !== preferredRoute)] : routes;
+  const errs = [];
+  for (const r of ordered) {
+    if (!r) continue;
+    try {
+      const data = await httpJson(r.fn(), _timeout);
+      preferredRoute = r.id;
+      if (data && typeof data === 'object' && data.error && !Array.isArray(data)) throw new Error(String(data.error).slice(0, 60));
+      return { data, route: r.label };
+    } catch (e) {
+      errs.push(`${r.id}: ${e && e.name === 'AbortError' ? 'timeout' : String(e.message || e).slice(0, 40)}`);
+    }
+  }
+  throw new Error(errs.join(' | ') || 'خطای ناشناخته');
+}
+
+/** اجرای هم‌زمان با محدودیت تعداد (برای واکشی تاریخچه) */
+export async function mapLimit(arr, n, fn) {
+  const out = new Array(arr.length);
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, arr.length) }, async () => {
+    while (i < arr.length) { const k = i++; out[k] = await fn(arr[k], k); }
+  }));
+  return out;
+}
+
+/* ───────────────── خواندن آرایه از پاسخ‌های متفاوت ───────────────── */
+
+function extractArray(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload) return [];
+  for (const k of ['data', 'result', 'rows', 'InstrumentInfo', 'instrumentList', 'lastData', 'MarketWatch']) {
+    if (Array.isArray(payload[k])) return payload[k];
+  }
+  /* سرویس قدیمی TSETMC: رشته‌ای شبیه var instrumentList=[...];  */
+  if (typeof payload === 'string') return parseTsetmcScript(payload);
+  return [];
+}
+
+/**
+ * پارس خروجی instinfodata.aspx (TSETMC legacy).
+ * ساختار: `var instrumentList = [["insCode","l18","l30",...],...];var lastData=[...]`
+ * ستون‌ها با سرستوردهای متنی می‌آیند؛ در نبود سرستون، نگاشت رایج زیر استفاده می‌شود.
+ */
+const LEGACY_COLS = ['insCode', 'l18', 'l30', 'isin', 'cs', 'cs_id', 'market', 'state',
+  'pc', 'pl', 'py', 'pf', 'pmin', 'pmax', 'tvol', 'tval', 'tno', 'bvol', 'eps', 'pe', 'zTitad'];
+
+function parseTsetmcScript(text) {
+  try {
+    const m = text.match(/instrumentList\s*=\s*(\[.*?\])\s*;/s);
+    if (!m) return [];
+    const arr = JSON.parse(m[1].replace(/,(\s*[}\]])/g, '$1').replace(/'/g, '"'));
+    if (!Array.isArray(arr) || !arr.length) return [];
+    return arr.map(row => {
+      if (Array.isArray(row)) {
+        const o = {};
+        row.forEach((v, i) => { o[LEGACY_COLS[i] ?? `c${i}`] = v; });
+        return o;
+      }
+      return row;
+    });
+  } catch { return []; }
+}
+
+/* ───────────────── منابع اصلی ───────────────── */
+
+/** اسنپ‌شات کامل بازار (یک درخواست) */
+export async function fetchMarketSnapshot() {
+  const log = [];
+
+  /* ۱) پروکسی هم‌ریشه (server.py) */
+  try {
+    const { data } = await fetchSmart('/api/market', { tag: 'proxy' });
+    const rows = extractArray(data);
+    if (rows.length > 30) return { rows, source: 'پروکسی محلی /api/market', live: true, log: [...log, 'proxy:ok'] };
+    log.push('proxy:empty');
+  } catch (e) { log.push(`proxy:${String(e.message).slice(0, 40)}`); }
+
+  /* ۲) BrsApi با کلید کاربر */
+  if (CFG.brsKey) {
+    const url = `${CFG.brsBase}AllSymbols.php?key=${encodeURIComponent(CFG.brsKey)}&type=1`;
+    const alt = `${CFG.brsAlt}AllSymbols.php?key=${encodeURIComponent(CFG.brsKey)}&type=1`;
+    try {
+      const { data, route } = await fetchSmart(url, { alt });
+      const rows = extractArray(data);
+      if (rows.length > 30) return { rows, source: `BrsApi (${route})`, live: true, log };
+      log.push('brs:empty');
+    } catch (e) { log.push(`brs:${String(e.message).slice(0, 60)}`); }
+  }
+
+  /* ۳) سرویس رسمی TSETMC */
+  try {
+    const { data, route } = await fetchSmart(`${CFG.tsetmcBase}instinfodata.aspx?t=PhantomTopsSet`, { tag: 'tsetmc' });
+    const rows = extractArray(data);
+    if (rows.length > 30) return { rows, source: `TSETMC legacy (${route})`, live: true, log };
+    log.push('tsetmc:empty');
+  } catch (e) { log.push(`tsetmc:${String(e.message).slice(0, 60)}`); }
+
+  /* ۴) اسنپ‌شات آفلاین */
+  try {
+    const snap = await fetch('data/offline-snapshot.json').then(r => (r.ok ? r.json() : null));
+    const rows = snap?.instruments || [];
+    if (rows.length) {
+      return {
+        rows: rows.map(r => ({ ...r, provenance: 'offline' })),
+        source: `اسنپ‌شات آفلاین (${snap.as_of || 'بدون تاریخ'})`,
+        live: false, log, snapshotMeta: snap,
+      };
+    }
+  } catch (e) { log.push(`offline:${String(e.message).slice(0, 40)}`); }
+
+  const err = new Error('هیچ منبع داده‌ای در دسترس نبود');
+  err.log = log;
+  throw err;
+}
+
+/** فیلدهای تکمیلی رسمی (EPS/PE/nav/شناوری/آستانه‌ها) برای یک نماد */
+export async function fetchInstrumentInfo(insCode) {
+  if (!insCode) return null;
+  const key = `info:${insCode}`;
+  const cached = memo(key, 10 * 60_000, null);
+  if (cached) return cached;
+  try {
+    const { data } = await fetchSmart(`${CFG.cdnBase}Instrument/GetInstrumentInfo/${insCode}`);
+    const o = data?.instrument || data?.staticInfo || data;
+    if (o && typeof o === 'object') cache.set(key, { t: Date.now(), v: o });
+    return o || null;
+  } catch { return null; }
+}
+
+/* ───────────────── تاریخچه قیمت (OHLCV) ───────────────── */
+
+const HIST_ALIASES = {
+  d: ['xDate', 'date', 'd', 'insDate'],
+  o: ['yValAdjustPz0', 'yValOpen', 'open', 'o', 'pFirst'],
+  h: ['yValAdjustPh0', 'yValHigh', 'high', 'h', 'pMax', 'priceHigh'],
+  l: ['yValAdjustPmin0', 'yValLow', 'low', 'l', 'pMin', 'priceLow'],
+  c: ['yValAdjustPc0', 'yValClosing', 'pc', 'close', 'c', 'pClose', 'closingPrice'],
+  p: ['yValAdjustPl0', 'yValLast', 'pl', 'last', 'pDrCotVal'],
+  v: ['qTotCap', 'zTotTran', 'volume', 'v', 'vol'],
+  val: ['qTotTran5J', 'value', 'val', 'valAlife', 'tval'],
+};
+
+const pickAny = (o, keys) => {
+  for (const k of keys) {
+    const v = o?.[k];
+    if (v !== undefined && v !== null && v !== '') return Number(String(v).replace(/,/g, ''));
+  }
+  return NaN;
+};
+
+/** آرایه خام تاریخچه → سری کندل صعودی */
+export function normalizeHistory(payload) {
+  const arr = extractArray(payload);
+  const rows = arr.map(o => ({
+    d: pickAny(o, HIST_ALIASES.d),
+    o: pickAny(o, HIST_ALIASES.o),
+    h: pickAny(o, HIST_ALIASES.h),
+    l: pickAny(o, HIST_ALIASES.l),
+    c: pickAny(o, HIST_ALIASES.c),
+    p: pickAny(o, HIST_ALIASES.p),
+    v: pickAny(o, HIST_ALIASES.v),
+    val: pickAny(o, HIST_ALIASES.val),
+  })).filter(r => Number.isFinite(r.c) && r.c > 0);
+
+  rows.sort((a, b) => (a.d || 0) - (b.d || 0));
+  const live = rows.filter(r => !Number.isFinite(r.v) || r.v > 0);   /* حذف روزهای بدون معامله */
+  const base = (live.length >= 20 ? live : rows).map(r => ({
+    d: r.d,
+    o: Number.isFinite(r.o) ? r.o : r.c,
+    h: Number.isFinite(r.h) ? Math.max(r.h, r.c) : r.c,
+    l: Number.isFinite(r.l) ? Math.min(r.l, r.c) : r.c,
+    c: r.c, v: Number.isFinite(r.v) ? r.v : 0, val: Number.isFinite(r.val) ? r.val : 0,
+  }));
+  return base;
+}
+
+/** تاریخچه یک نماد؛ در حالت آفلاین از `history` اسنپ‌شات خوانده می‌شود */
+export async function fetchHistory(inst, snapshotMeta) {
+  if (inst.history) return toSeries(inst.history).bars;
+  if (snapshotMeta?.histories?.[inst.l18]) return snapshotMeta.histories[inst.l18];
+
+  const key = `hist:${inst.insCode || inst.l18}`;
+  const cached = memo(key, 30 * 60_000, null);
+  if (cached) return cached;
+
+  const urls = [];
+  if (inst.insCode) urls.push(`${CFG.cdnBase}MarketWatch/GetPriceHistory?instrumentId=${inst.insCode || inst.l18}&d1=&d2=`);
+  if (inst.insCode) urls.push(`/api/history?insCode=${encodeURIComponent(inst.insCode)}&days=${CFG.historyDays}`);
+  urls.push(`/api/history?l18=${encodeURIComponent(inst.l18)}&days=${CFG.historyDays}`);
+  if (CFG.brsKey) urls.push(`${CFG.brsBase}History.php?key=${encodeURIComponent(CFG.brsKey)}&type=0&l18=${encodeURIComponent(inst.l18)}`);
+
+  for (const u of urls) {
+    try {
+      const { data } = await fetchSmart(u, { tag: 'history' });
+      const bars = normalizeHistory(data);
+      if (bars.length >= 20) { cache.set(key, { t: Date.now(), v: bars }); return bars; }
+    } catch { /* بعدی */ }
+  }
+  return null;
+}
+
+/** خواندن اسنپ‌شات آفلاین — برای نخستین رندر (بدون معطل‌ماندن روی شبکه) */
+export async function loadOfflineSnapshot() {
+  try {
+    const res = await fetch('data/offline-snapshot.json');
+    if (!res.ok) return null;
+    const snap = await res.json();
+    const rows = (snap.instruments || []).map(r => ({ ...r, provenance: 'offline' }));
+    return { instruments: normalizeAll(rows), source: `اسنپ‌شات آفلاین (${snap.as_of || '—'})`,
+      live: false, snapshotMeta: snap };
+  } catch { return null; }
+}
+
+/** بارگذاری کامل: اسنپ‌شات + تاریخچه نمادهای منتخب (برای ستون‌های تکنیکال واقعی) */
+export async function loadMarket({ historyFor = 0, concurrency = 6, onProgress } = {}) {
+  const snap = await fetchMarketSnapshot();
+  let insts = normalizeAll(snap.rows);
+
+  /* اگر رکورد آفلاین history داشت، همان کافی است */
+  const rawBySymbol = new Map((snap.rows || []).map(r => [String(r.l18 ?? r.symbol ?? ''), r]));
+  for (const it of insts) {
+    const raw = rawBySymbol.get(it.l18);
+    if (raw?.history && !it.history) it.history = expandHistory(raw.history);
+  }
+
+  if (historyFor > 0 && snap.live) {
+    const need = insts.filter(i => !i.history)
+      .sort((a, b) => (b.tval || 0) - (a.tval || 0)).slice(0, historyFor);
+    let done = 0;
+    await mapLimit(need, concurrency, async inst => {
+      const bars = await fetchHistory(inst, snap.snapshotMeta);
+      if (bars) inst.history = bars.map(b => ({ ...b }));
+      done++; onProgress?.(done, need.length, inst.l18);
+    });
+  }
+
+  return { instruments: insts, ...snap };
+}
+
+/* ───────────────── تنظیمات کلید/منبع (بدون هاردکد در ریپو) ───────────────── */
+
+export function loadConfigFromStorage() {
+  try {
+    const raw = localStorage.getItem('tabloradar.cfg');
+    if (!raw) return {};
+    const o = JSON.parse(raw);
+    if (typeof o.brsKey === 'string') CFG.brsKey = o.brsKey;
+    if (Number.isFinite(o.refreshSec)) CFG.refreshSec = o.refreshSec;
+    if (Number.isFinite(o.historyDays)) CFG.historyDays = o.historyDays;
+    return o;
+  } catch { return {}; }
+}
+
+export function saveConfig(patch) {
+  Object.assign(CFG, patch);
+  try {
+    localStorage.setItem('tabloradar.cfg', JSON.stringify({
+      brsKey: CFG.brsKey, refreshSec: CFG.refreshSec, historyDays: CFG.historyDays,
+    }));
+  } catch { /* حالت خصوصی مرورگر */ }
+}
+
+export { normalizeInstrument, normalizeAll };
