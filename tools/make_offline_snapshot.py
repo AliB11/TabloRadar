@@ -206,8 +206,16 @@ def main() -> None:
             "sectorPE": round(rng.uniform(6, 16), 1),
             "zTitad": z, "kAjCapValCpsIdx": round(rng.uniform(6, 34), 1),
             "state": "توقف نماد" if tno == 0 else "مجاز",
-            "provenance": "offline",
-            "synthetic": l18.startswith("نماد") or l18.startswith("صندوق") or l18.startswith("زغال"),
+            # ⚠ این اسنپ‌شات «شبیه‌سازی» است (نه دادهٔ زنده): لنگرهای واقعی فقط
+            #   py/pc/tval/tno/zTitad/eps هستند؛ بقیه با seed ثابت ساخته می‌شوند.
+            "provenance": "offline-simulated",
+            "synthetic": True,
+            "anchor_fields": ["py", "pc", "tval", "tno", "zTitad", "eps"],
+            "simulated_fields": ["pl", "pf", "pmin", "pmax", "tmax", "tmin", "tvol", "bvol",
+                                 "sectorPE", "kAjCapValCpsIdx", "Buy_CountI", "Buy_I_Volume",
+                                 "Buy_CountN", "Buy_N_Volume", "Sell_CountI", "Sell_I_Volume",
+                                 "Sell_CountN", "Sell_N_Volume", "vwap", "qTotTran5JAvg",
+                                 "pd1", "qd1", "zd1", "po1", "qo1", "zo1", "history"],
         }
         if tno:
             rec.update(flows(rng, profile, tval, tno, tvol))
@@ -220,11 +228,25 @@ def main() -> None:
         "schema": "tabloradar.offline-snapshot/v2",
         "as_of": MACRO["as_of"],
         "currency": "IRR (ریال)",
+        "data_kind": "simulated",
+        "generated_by": "tools/make_offline_snapshot.py",
         "disclaimer": (
-            "اسنپ‌شات آفلاین برای اجرای بدون شبکه. لنگرها (قیمت پایانی/دیروز، ارزش معاملات، تعداد معاملات) "
-            "از گزارش‌های منتشرشده ۲۸ تا ۳۰ شهریور ۱۴۰۵ گرفته شده‌اند؛ تفکیک حقیقی/حقوقی، دفتر سفارش و "
-            "تاریخچه ۲۶۰ جلسه‌ای شبیه‌سازی قطعی (seed=14050630) است و نباید به‌عنوان داده واقعی تلقی شود."
+            "این فایل دادهٔ زنده نیست: صرفاً برای اجرای بدون شبکه/تست رابط ساخته شده است. "
+            "از هر رکورد، فقط لنگرها (قیمت پایانی و دیروز، ارزش معاملات، تعداد معاملات، تعداد سهام، EPS) "
+            "از گزارش‌های منتشرشده ۲۸ تا ۳۰ شهریور ۱۴۰۵ گرفته شده‌اند؛ نقدینگی حقیقی/حقوقی، دفتر سفارش ۵ سطحی "
+            "و تاریخچهٔ ۲۶۰ جلسه‌ای با مولد قطعی (seed=14050630) شبیه‌سازی شده‌اند و مقدار واقعی ندارند. "
+            "برای دادهٔ واقعی: python3 tools/fetch_live_snapshot.py (رونوشت زنده از TSETMC/بورس‌تریدر)."
         ),
+        "simulated_fields": {
+            "real_anchors": ["py", "pc", "tval", "tno", "zTitad", "eps"],
+            "simulated": ["pl", "pf", "pmin", "pmax", "tmax", "tmin", "tvol", "bvol",
+                          "sectorPE", "kAjCapValCpsIdx", "حقیقی/حقوقی (Buy/Sell_*)",
+                          "دفتر سفارش ۵ سطحی (pd/qd/zd…)", "vwap", "qTotTran5JAvg",
+                          "history (۲۶۰ جلسه)"],
+            "seed": 14050630,
+            "note": "سنجه‌های مشتق از فیلدهای شبیه‌سازی‌شده (قدرت خریدار، پول حقیقی خالص، صف، حجم مشکوک) "
+                    "هم به‌تبع شبیه‌سازی‌شده‌اند؛ امتیاز/رتبه را به‌عنوان سیگنال واقعی نخوانید.",
+        },
         "rules": MACRO,
         "indices": INDICES,
         "history_kind": "close+volume only (بدون high/low → ATR برآوردی از دامنه نوسان محاسبه می‌شود)",

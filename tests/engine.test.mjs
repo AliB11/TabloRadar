@@ -365,5 +365,15 @@ test('خروجی اسنپ‌شات آفلاین برچسب‌دار است و ت
   assert.match(SNAP.disclaimer, /شبیه‌سازی/);
   assert.equal(SNAP.rules.base_volume, 1, 'حجم مبنا باید در داده برچسب بخورد');
   assert.ok(RAW.every(r => r.history?.c?.length >= 30), 'هر نماد تاریخچه ۳۰+ جلسه‌ای دارد');
-  assert.ok(INSTRUMENTS.every(i => i.provenance === 'offline'), 'منبع داده در هر رکورد ثبت شده');
+  assert.ok(INSTRUMENTS.every(i => i.provenance), 'منبع داده در هر رکورد ثبت شده');
+  /* شفافیت: هر رکورد نوع داده را حمل می‌کند و اگر شبیه‌سازی است، صریح برچسب می‌خورد */
+  const kind = SNAP.data_kind || (SNAP.simulated_fields ? 'simulated' : 'live');
+  assert.ok(['live', 'simulated', 'live-partial'].includes(kind), `data_kind نامعتبر: ${kind}`);
+  if (kind === 'simulated') {
+    assert.ok(RAW.every(r => r.synthetic === true), 'رکورد شبیه‌سازی‌شده باید synthetic=true باشد');
+    assert.ok(Array.isArray(SNAP.simulated_fields?.simulated), 'فهرست فیلدهای شبیه‌سازی‌شده لازم است');
+    assert.ok(RAW.every(r => Array.isArray(r.anchor_fields)), 'لنگرهای واقعی هر رکورد ثبت می‌شود');
+  } else {
+    assert.ok(RAW.every(r => r.synthetic === false), 'دادهٔ زنده نباید synthetic باشد');
+  }
 });
