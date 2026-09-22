@@ -2,11 +2,13 @@
  * data.js — لایه داده تابلورادار
  *
  * زنجیره منبع (از مطمئن‌ترین در دسترس‌ترین):
- *   ۱) پروکسی هم‌ریشه  /api/*            → سرور `server.py` (بدون CORS، بدون کلید در کلاینت)
+ *   ۱) پروکسی هم‌ریشه  /api/market       → سرور `server.py` (TSETMC → بورس‌تریدر → اسنپ‌شات)
  *   ۲) BrsApi مستقیم (اگر کاربر کلید بدهد) → `Api.BrsApi.ir/Tsetmc/AllSymbols.php`
- *   ۳) سرویس رسمی TSETMC                  → `service.tsetmc.com/tsev2/data/instinfodata.aspx`
- *   ۴) پراکسی‌های CORS عمومی              → corsproxy.io / allorigins / codetabs
- *   ۵) اسنپ‌شات آفلاین `data/offline-snapshot.json` (برچسب‌دار، برای حالت قطعی شبکه)
+ *   ۳) سرویس رسمی TSETMC (بدون کلید)      → `old.tsetmc.com/tsev2/data/MarketWatchInit.aspx`
+ *      + `ClientTypeAll.aspx` برای حقیقی/حقوقی (قالب رسمی؛ پارسر در `sources.js`)
+ *   ۴) بورس‌تریدر — نبض بازار و تابلوهای عمومی نمادها (مسیر مستقیم مرورگر با پراکسی CORS)
+ *   ۵) اسنپ‌شات محلی `data/offline-snapshot.json` — اگر «شبیه‌سازی» باشد صریح برچسب می‌خورد
+ *      (`kind: simulated`، `synthetic: true`) و هرگز به‌جای داده زنده جا نمی‌زند.
  *
  * تاریخچه قیمت (برای اندیکاتورهای واقعی):
  *   /api/history?l18=… → cdn.tsetmc.com /api/MarketWatch/GetPriceHistory → BrsApi History.php
@@ -14,14 +16,21 @@
 
 import { normalizeInstrument, normalizeAll, expandHistory } from './tse.js';
 import { toSeries } from './indicators.js';
+import {
+  parseMarketWatchInit, parseClientTypeAll, buildRows, parseChartCsv,
+  btOverviewFromText, btSymbolFromText,
+} from './sources.js';
 
 export const CFG = {
   brsKey: '',                       // هرگز در ریپو هاردکد نمی‌شود؛ از تنظیمات/محیط
   brsBase: 'https://Api.BrsApi.ir/Tsetmc/',
   brsAlt: 'https://BrsApi.ir/Api/Tsetmc/',
-  tsetmcBase: 'https://service.tsetmc.com/tsev2/data/',
+  tsetmcBase: 'https://old.tsetmc.com/tsev2/data/',   // قالب متنی رسمی TSETMC
   cdnBase: 'https://cdn.tsetmc.com/api/',
+  btBase: 'https://bourse-trader.ir',
   timeout: 9000,
+  directTimeout: 4500,   // منابع مستقیم مرورگر سریع شکست بخورند (تجربهٔ کاربری)
+  btSymbols: 10,         // در مسیر مستقیم چند نماد از بورس‌تریدر خوانده شود
   historyDays: 260,
   refreshSec: 60,
 };
@@ -57,7 +66,7 @@ const PROXIES = [
 let preferredRoute = null;
 
 /** یک URL را با زنجیره مسیرها (مستقیم → جایگزین → پراکسی CORS) می‌خواند. */
-async function fetchSmart(url, { alt, tag = '', allowProxy = true, timeout = CFG.timeout } = {}) {
+async function fetchSmart(url, { alt, tag = '', allowProxy = true, timeout = CFG.timeout, maxRoutes = 0 } = {}) {
   const sameOrigin = url.startsWith('/');
   const routes = [];
   if (alt) routes.push({ id: 'althost', label: 'میزبان جایگزین', fn: () => alt });
@@ -67,7 +76,10 @@ async function fetchSmart(url, { alt, tag = '', allowProxy = true, timeout = CFG
   }
   const _timeout = timeout;
 
-  const ordered = preferredRoute ? [routes.find(r => r.id === preferredRoute), ...routes.filter(r => r.id !== preferredRoute)] : routes;
+  let ordered = preferredRoute
+    ? [routes.find(r => r.id === preferredRoute), ...routes.filter(r => r.id !== preferredRoute)]
+    : routes;
+  if (maxRoutes > 0) ordered = ordered.slice(0, maxRoutes);
   const errs = [];
   for (const r of ordered) {
     if (!r) continue;
@@ -133,16 +145,25 @@ function parseTsetmcScript(text) {
 
 /* ───────────────── منابع اصلی ───────────────── */
 
-/** اسنپ‌شات کامل بازار (یک درخواست) */
+/** اسنپ‌شات کامل بازار (یک درخواست) — زنجیرهٔ منابع زنده تا اسنپ‌شات محلی */
 export async function fetchMarketSnapshot() {
   const log = [];
 
-  /* ۱) پروکسی هم‌ریشه (server.py) */
+  /* ۱) پروکسی هم‌ریشه (server.py) — داده را سرور از TSETMC/بورس‌تریدر می‌آورد */
   try {
     const { data } = await fetchSmart('/api/market', { tag: 'proxy' });
     const rows = extractArray(data);
-    if (rows.length > 30) return { rows, source: 'پروکسی محلی /api/market', live: true, log: [...log, 'proxy:ok'] };
-    log.push('proxy:empty');
+    const kind = data?.kind || (data?.instruments?.length ? 'live' : '');
+    if (rows.length > 30 && kind !== 'simulated') {
+      return {
+        rows, source: data.source || 'پروکسی محلی /api/market', kind,
+        live: kind === 'live' || kind === 'live-partial',
+        asOf: data.as_of || '', indices: data.indices || null,
+        marketState: data.market_state || null, overview: data.market_overview || null,
+        log: [...log, `proxy:ok(${kind})`],
+      };
+    }
+    log.push(rows.length ? `proxy:${kind || 'snapshot'}` : 'proxy:empty');
   } catch (e) { log.push(`proxy:${String(e.message).slice(0, 40)}`); }
 
   /* ۲) BrsApi با کلید کاربر */
@@ -150,30 +171,78 @@ export async function fetchMarketSnapshot() {
     const url = `${CFG.brsBase}AllSymbols.php?key=${encodeURIComponent(CFG.brsKey)}&type=1`;
     const alt = `${CFG.brsAlt}AllSymbols.php?key=${encodeURIComponent(CFG.brsKey)}&type=1`;
     try {
-      const { data, route } = await fetchSmart(url, { alt });
+      const { data, route } = await fetchSmart(url, { alt, timeout: CFG.directTimeout, maxRoutes: 2 });
       const rows = extractArray(data);
-      if (rows.length > 30) return { rows, source: `BrsApi (${route})`, live: true, log };
+      if (rows.length > 30) {
+        return { rows: rows.map(r => ({ ...r, provenance: 'brsapi' })), source: `BrsApi (${route})`,
+          kind: 'live', live: true, log };
+      }
       log.push('brs:empty');
     } catch (e) { log.push(`brs:${String(e.message).slice(0, 60)}`); }
   }
 
-  /* ۳) سرویس رسمی TSETMC */
+  /* ۳) سرویس رسمی TSETMC — قالب متنی رسمی، بدون کلید (MarketWatchInit + ClientTypeAll) */
   try {
-    const { data, route } = await fetchSmart(`${CFG.tsetmcBase}instinfodata.aspx?t=PhantomTopsSet`, { tag: 'tsetmc' });
-    const rows = extractArray(data);
-    if (rows.length > 30) return { rows, source: `TSETMC legacy (${route})`, live: true, log };
+    const mw = await fetchSmart(`${CFG.tsetmcBase}MarketWatchInit.aspx?h=0&r=0`,
+      { timeout: CFG.directTimeout, maxRoutes: 2 });
+    const parsed = parseMarketWatchInit(typeof mw.data === 'string' ? mw.data : JSON.stringify(mw.data));
+    if (parsed.prices.length > 30) {
+      let clients = {};
+      try {
+        const ct = await fetchSmart(`${CFG.tsetmcBase}ClientTypeAll.aspx`,
+          { timeout: CFG.directTimeout, maxRoutes: 2 });
+        clients = parseClientTypeAll(typeof ct.data === 'string' ? ct.data : '');
+      } catch (e) { log.push(`tsetmc-ct:${String(e.message).slice(0, 40)}`); }
+      const rows = buildRows(parsed, clients);
+      const st = parsed.state || {};
+      return {
+        rows, source: `TSETMC رسمی (${mw.route})`, kind: 'live', live: true, log,
+        asOf: st.datetimeRaw || '',
+        indices: st.indexTotal ? {
+          index_total: { fa: 'شاخص کل بورس', value: st.indexTotal, chg_pct: st.indexChangePct },
+        } : null,
+        marketState: st,
+      };
+    }
     log.push('tsetmc:empty');
   } catch (e) { log.push(`tsetmc:${String(e.message).slice(0, 60)}`); }
 
-  /* ۴) اسنپ‌شات آفلاین */
+  /* ۴) بورس‌تریدر — نبض بازار + تابلوهای عمومی نمادهای پرگردش (پوشش جزئی، صریح) */
+  try {
+    const home = await fetchSmart(`${CFG.btBase}/`, { timeout: CFG.directTimeout, maxRoutes: 2 });
+    const overview = btOverviewFromText(String(home.data || ''));
+    const top = [...(overview.top_inflow || []).slice(0, 6), ...(overview.top_outflow || []).slice(0, 4)]
+      .map(i => i.symbol).filter(Boolean);
+    const rows = [];
+    for (const sym of [...new Set(top)].slice(0, CFG.btSymbols)) {
+      try {
+        const page = await fetchSmart(`${CFG.btBase}/symbol/${encodeURIComponent(sym)}`,
+          { timeout: CFG.directTimeout, maxRoutes: 1 });
+        const snap = btSymbolFromText(String(page.data || ''), sym);
+        rows.push({ ...snap, l18: sym, provenance: 'bourse-trader', synthetic: false, partial: true });
+      } catch { /* نماد بعدی */ }
+    }
+    if (rows.length >= 5) {
+      return {
+        rows, source: `bourse-trader.ir (پوشش جزئی: ${rows.length} نماد پرگردش)`,
+        kind: 'live-partial', live: true, overview, log,
+        asOf: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      };
+    }
+    log.push('bt:partial');
+  } catch (e) { log.push(`bt:${String(e.message).slice(0, 60)}`); }
+
+  /* ۵) اسنپ‌شات محلی (آخرین سنگر — با برچسب صریح شبیه‌سازی/آفلاین) */
   try {
     const snap = await fetch('data/offline-snapshot.json').then(r => (r.ok ? r.json() : null));
     const rows = snap?.instruments || [];
     if (rows.length) {
+      const kind = snap.data_kind || (snap.simulated_fields ? 'simulated' : 'live-partial');
       return {
-        rows: rows.map(r => ({ ...r, provenance: 'offline' })),
-        source: `اسنپ‌شات آفلاین (${snap.as_of || 'بدون تاریخ'})`,
-        live: false, log, snapshotMeta: snap,
+        rows: rows.map(r => ({ ...r, provenance: r.provenance || 'offline' })),
+        source: `اسنپ‌شات محلی (${snap.as_of || 'بدون تاریخ'})`,
+        kind, live: false, log, snapshotMeta: snap,
+        simulatedFields: snap.simulated_fields || null,
       };
     }
   } catch (e) { log.push(`offline:${String(e.message).slice(0, 40)}`); }
@@ -181,6 +250,27 @@ export async function fetchMarketSnapshot() {
   const err = new Error('هیچ منبع داده‌ای در دسترس نبود');
   err.log = log;
   throw err;
+}
+
+/** فیلدهای تکمیلی یک نماد از بورس‌تریدر (فقط وقتی پروکسی محلی در دسترس باشد) */
+export async function fetchSymbolDetail(l18) {
+  if (!l18) return null;
+  try {
+    const { data } = await fetchSmart(`/api/symbol/${encodeURIComponent(l18)}`, { maxRoutes: 1 });
+    return data?.detail || null;
+  } catch { return null; }
+}
+
+/** نبض بازار (شاخص/صف/پول حقیقی) از پروکسی محلی، وگرنه مستقیم از بورس‌تریدر */
+export async function fetchMarketOverview() {
+  try {
+    const { data } = await fetchSmart('/api/overview', { maxRoutes: 1 });
+    if (data?.overview) return data.overview;
+  } catch { /* مسیر مستقیم */ }
+  try {
+    const { data } = await fetchSmart(`${CFG.btBase}/`, { timeout: CFG.directTimeout, maxRoutes: 2 });
+    return btOverviewFromText(String(data || ''));
+  } catch { return null; }
 }
 
 /** فیلدهای تکمیلی رسمی (EPS/PE/nav/شناوری/آستانه‌ها) برای یک نماد */
@@ -253,18 +343,31 @@ export async function fetchHistory(inst, snapshotMeta) {
   const cached = memo(key, 30 * 60_000, null);
   if (cached) return cached;
 
-  const urls = [];
-  if (inst.insCode) urls.push(`${CFG.cdnBase}MarketWatch/GetPriceHistory?instrumentId=${inst.insCode || inst.l18}&d1=&d2=`);
-  if (inst.insCode) urls.push(`/api/history?insCode=${encodeURIComponent(inst.insCode)}&days=${CFG.historyDays}`);
-  urls.push(`/api/history?l18=${encodeURIComponent(inst.l18)}&days=${CFG.historyDays}`);
-  if (CFG.brsKey) urls.push(`${CFG.brsBase}History.php?key=${encodeURIComponent(CFG.brsKey)}&type=0&l18=${encodeURIComponent(inst.l18)}`);
+  /* هر ورودی: [url, parser, options] — parser خروجی خام را به کندل تبدیل می‌کند */
+  const attempts = [];
+  if (inst.insCode) {
+    attempts.push([`/api/history?insCode=${encodeURIComponent(inst.insCode)}&days=${CFG.historyDays}`,
+      d => (Array.isArray(d?.bars) ? d.bars : normalizeHistory(d)), { maxRoutes: 1 }]);
+    // تاریخچهٔ تعدیل‌شدهٔ رسمی TSETMC (قالب CSV)
+    attempts.push([`https://members.tsetmc.com/tsev2/chart/data/Financial.aspx?i=${encodeURIComponent(inst.insCode)}&t=ph&a=1`,
+      d => parseChartCsv(String(d || '')), { timeout: CFG.directTimeout, maxRoutes: 2 }]);
+    // اندپوینت قدیمی CDN (JSON)
+    attempts.push([`${CFG.cdnBase}ClosingPrice/GetClosingPriceDailyList/${encodeURIComponent(inst.insCode)}/${CFG.historyDays}`,
+      d => normalizeHistory(d?.closingPriceDaily || d), { timeout: CFG.directTimeout, maxRoutes: 2 }]);
+  }
+  attempts.push([`/api/history?l18=${encodeURIComponent(inst.l18)}&days=${CFG.historyDays}`,
+    d => (Array.isArray(d?.bars) ? d.bars : normalizeHistory(d)), { maxRoutes: 1 }]);
+  if (CFG.brsKey) {
+    attempts.push([`${CFG.brsBase}History.php?key=${encodeURIComponent(CFG.brsKey)}&type=0&l18=${encodeURIComponent(inst.l18)}`,
+      d => normalizeHistory(d), { timeout: CFG.directTimeout, maxRoutes: 2 }]);
+  }
 
-  for (const u of urls) {
+  for (const [u, parse, opts] of attempts) {
     try {
-      const { data } = await fetchSmart(u, { tag: 'history' });
-      const bars = normalizeHistory(data);
+      const { data } = await fetchSmart(u, { tag: 'history', ...opts });
+      const bars = parse(data);
       if (bars.length >= 20) { cache.set(key, { t: Date.now(), v: bars }); return bars; }
-    } catch { /* بعدی */ }
+    } catch { /* منبع بعدی */ }
   }
   return null;
 }
@@ -275,9 +378,10 @@ export async function loadOfflineSnapshot() {
     const res = await fetch('data/offline-snapshot.json');
     if (!res.ok) return null;
     const snap = await res.json();
-    const rows = (snap.instruments || []).map(r => ({ ...r, provenance: 'offline' }));
-    return { instruments: normalizeAll(rows), source: `اسنپ‌شات آفلاین (${snap.as_of || '—'})`,
-      live: false, snapshotMeta: snap };
+    const rows = (snap.instruments || []).map(r => ({ ...r, provenance: r.provenance || 'offline' }));
+    const kind = snap.data_kind || (snap.simulated_fields ? 'simulated' : 'live-partial');
+    return { instruments: normalizeAll(rows), source: `اسنپ‌شات محلی (${snap.as_of || '—'})`,
+      kind, live: false, snapshotMeta: snap, simulatedFields: snap.simulated_fields || null };
   } catch { return null; }
 }
 

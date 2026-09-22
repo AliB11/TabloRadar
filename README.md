@@ -3,9 +3,34 @@
 **کالبدشکافی کمی تابلوی بورس تهران و فرابورس — دیده‌بان، رتبه‌بندی و نقشه معامله با قواعد واقعی تالار (۱۴۰۵)**
 
 یک داشبورد تک‌صفحه‌ای (Landing + Live Dashboard) با هسته ماژولار ES و یک پایپ‌لاین پایتون stdlib که **همان فرمول‌ها** را اجرا می‌کند.
-داده از سرویس‌های عمومی TSETMC / BrsApi خوانده می‌شود؛ کلید API هرگز در ریپو یا مرورگر نمی‌ماند.
+داده از سرویس‌های عمومی TSETMC / BrsApi / بورس‌تریدر خوانده می‌شود؛ کلید API هرگز در ریپو یا مرورگر نمی‌ماند.
 
 > ⚠️ **سلب مسئولیت:** ابزار تحلیل داده است، نه توصیه سرمایه‌گذاری. مسئولیت هر تصمیم معاملاتی با کاربر است.
+
+---
+
+## دادهٔ واقعی یا ساختگی؟ (پاسخ صریح)
+
+* **در کد، همهٔ مسیرها واقعی‌اند**: `assets/js/data.js` و `server.py` و `tsepy/data_provider.py` از سرویس‌های رسمی TSETMC و
+  `Api.BrsApi.ir` و صفحه‌های عمومی `bourse-trader.ir` داده می‌خوانند (پارس‌گرهای هر دو سرویس در
+  `assets/js/sources.js` و `tsepy/tsetmc_live.py` و `tsepy/bourse_trader.py` با قطعات واقعی آزمون شده‌اند:
+  `python3 tools/sources_selftest.py` و `npm test`).
+* **سناریوی قطعی شبکه**: آخرین سنگر، فایل `data/offline-snapshot.json` است. نسخهٔ همراه ریپو **شبیه‌سازی‌شده** است —
+  لنگرهای قیمت/ارزش معاملات از گزارش‌ها گرفته شده، اما **دفتر سفارش، تفکیک حقیقی/حقوقی و تاریخچه ساختهٔ شبیه‌سازند**.
+  این فایل اکنون `data_kind: "simulated"`، `synthetic: true` روی همهٔ رکوردها و فهرست `simulated_fields` دارد و
+  داشبورد با هشدار سرخ اعلام می‌کند «این داده‌ها واقعی نیستند» — هیچ‌جا داده شبیه‌سازی‌شده به‌جای داده زنده جا نمی‌زند.
+* **برای دادهٔ واقعی یکی از این دو کار را انجام دهید:**
+
+```bash
+python3 tools/check_data_sources.py                 # آزمون دسترسی به همهٔ منابع (روی ماشین خودتان)
+python3 tools/fetch_live_snapshot.py                # رونوشت واقعی: TSETMC + بورس‌تریدر → data/offline-snapshot.json
+python3 tools/fetch_live_snapshot.py --history 200 --enrich 120 --bt 15   # عمیق‌تر
+python3 server.py                                   # دادهٔ زنده در لحظه (پروکسی + کش دیسکی)
+```
+
+پس از اجرای `fetch_live_snapshot.py`، همان فایل `data/offline-snapshot.json` با `data_kind: "live"`،
+`provenance` هر رکورد و تاریخ برداشت بازنویسی می‌شود؛ از آن لحظه داشبورد — حتی بدون شبکه — **عدد واقعی** نشان می‌دهد.
+(سرویس‌های TSETMC/بورس‌تریدر از بیرون ایران معمولاً در دسترس نیستند؛ این ابزار را روی ماشین/سروری با دسترسی اجرا کنید.)
 
 ---
 
@@ -41,7 +66,11 @@ npm test                # ۵۶ آزمون: هسته + میز پژوهش + رند
 npm run check           # node --check روی همه ماژول‌ها
 npm run wiring          # اتصال DOM/CSS، importها، توازن تگ، نشت کلید
 npm run parity          # برابری خروجی JS و Python روی یک داده
+npm run parity:sources  # برابری پارس‌گرهای منابع (JS ↔ Python) روی قطعه‌های واقعی
 npm run selftest        # ۲۲ خودآزمون بک‌تست: no-lookahead، قطعیت، دفتر ثبت
+python3 tools/sources_selftest.py   # آزمون پارس‌گر دادهٔ واقعی روی قطعات برداشت‌شده
+python3 tools/check_data_sources.py # کدام منبع روی این ماشین پاسخ می‌دهد؟
+python3 tools/fetch_live_snapshot.py# ساخت اسنپ‌شات واقعی برای اجرای بی‌شبکه
 ```
 
 ## ساختار
@@ -52,7 +81,8 @@ assets/css/theme.css       سیستم طراحی (بدون Tailwind CDN)
 assets/js/tse.js           قواعد بازار + نرمال‌سازی فیلدها + اعداد فارسی
 assets/js/indicators.js    RSI · EMA · SMA · MACD · Bollinger · ATR · slope · vol · MDD
 assets/js/engine.js         سنجه‌های تابلو، وتوها، ۵ عامل، اطمینان، نقشه، پالس، صنایع
-assets/js/data.js          زنجیره منبع، تاریخچه، cache، تنظیمات کاربر
+assets/js/sources.js      پارس‌گر منابع واقعی (TSETMC رسمی + بورس‌تریدر) — بدون عدد ساختگی
+assets/js/data.js          زنجیره منبع (پروکسی → BrsApi → TSETMC → بورس‌تریدر → اسنپ‌شات)، تاریخچه، cache
 assets/js/scorecard.js     رندر «کارنامۀ مدل» (فقط می‌خواند؛ عدد نمی‌سازد)
 assets/js/alerts.js        موتور هشدار شرطی — پارسر فارسی + ارزیابی + اشتراک تلگرام
 assets/js/events.js        کارت اتفاقات نماد (خواندن data/events.json / منبع دوم)
@@ -62,9 +92,13 @@ assets/js/app.js           بوت، فیلتر، تب‌ها، CLI، تور، Wh
 server.py                  استاتیک + /api/market /api/history(+کش دیسکی) /api/info /api/health
 main.py · tsepy/*          پایپ‌لاین پایتون (config, data_provider, technical,
                            tablokhani, scoring_engine, backtest, cli_dashboard)
-tools/                     make_offline_snapshot.py · parity_check.py · check_wiring.py ·
-                           backtest_check.py · inline_code.py
-tests/                     engine.test.mjs · dom.test.mjs · lab.test.mjs · boot.test.mjs
+tsepy/tsetmc_live.py       کلاینت TSETMC (MarketWatchInit/ClientTypeAll/ClosingPriceAll/chart)
+tsepy/bourse_trader.py     خوانندهٔ عمومی بورس‌تریدر (نبض بازار + تابلو نمادها)
+tools/                     fetch_live_snapshot.py (رونوشت واقعی) · check_data_sources.py (آزمون دسترسی) ·
+                           sources_selftest.py (۲۲+۵۶ آزمون پارسر) · make_offline_snapshot.py (نمونه برچسب‌دار) ·
+                           parity_check.py · check_wiring.py · backtest_check.py · inline_code.py
+tests/                     engine.test.mjs · dom.test.mjs · lab.test.mjs · boot.test.mjs ·
+                           sources.test.mjs (پارس‌گر منابع روی قطعات واقعی) · fixtures/ (نمونه‌های واقعی)
 docs/TSE_MARKET_RESEARCH.md  تحقیق بازار (منبع‌دار) — مبنای قواعد
 AUDIT_360.md               پیمایش ۳۶۰ درجه نسخه ۲ (۱۸ یافته + شواهد خط‌به‌خط)
 CREATIVE_PROPOSALS.md      ایده‌ها + وضعیت پیاده‌سازی (نقشۀ ۴ هفته‌ای: تحویل شد)

@@ -13,8 +13,12 @@
     "bundle": "python3 tools/inline_code.py",
     "build": "npm run snapshot && npm run bundle",
     "parity": "python3 tools/parity_check.py",
+    "parity:sources": "python3 tools/sources_parity.py",
     "wiring": "python3 tools/check_wiring.py",
-    "check": "node --check assets/js/tse.js && node --check assets/js/indicators.js && node --check assets/js/engine.js && node --check assets/js/data.js && node --check assets/js/ui.js && node --check assets/js/scorecard.js && node --check assets/js/alerts.js && node --check assets/js/events.js && node --check assets/js/compare.js && node --check assets/js/app.js"
+    "sources": "python3 tools/sources_selftest.py",
+    "probe": "python3 tools/check_data_sources.py",
+    "live-snapshot": "python3 tools/fetch_live_snapshot.py",
+    "check": "node --check assets/js/tse.js && node --check assets/js/indicators.js && node --check assets/js/engine.js && node --check assets/js/sources.js && node --check assets/js/data.js && node --check assets/js/ui.js && node --check assets/js/scorecard.js && node --check assets/js/alerts.js && node --check assets/js/events.js && node --check assets/js/compare.js && node --check assets/js/app.js"
   },
   "engines": { "node": ">=18.0.0" },
   "license": "MIT"
