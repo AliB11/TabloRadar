@@ -1,0 +1,232 @@
+{
+ "horizons": {
+  "1": {
+   "n": 1602,
+   "hit_rate": 4.4,
+   "loss_rate": 1.1,
+   "timeout_rate": 94.6,
+   "avg_ret": 0.127,
+   "avg_win_ret": 3.534,
+   "avg_loss_ret": -4.615,
+   "payoff": 0.77,
+   "avg_ret_over_risk": 0.035,
+   "median_hold": 1,
+   "benchmark": {
+    "n": 5373,
+    "hit_rate": 3.5,
+    "avg_ret": -0.066
+   },
+   "excess_ret": 0.193,
+   "hit_lift": 0.9
+  },
+  "3": {
+   "n": 1590,
+   "hit_rate": 21.3,
+   "loss_rate": 7.8,
+   "timeout_rate": 70.9,
+   "avg_ret": 0.345,
+   "avg_win_ret": 3.67,
+   "avg_loss_ret": -4.506,
+   "payoff": 0.81,
+   "avg_ret_over_risk": 0.093,
+   "median_hold": 3,
+   "benchmark": {
+    "n": 5319,
+    "hit_rate": 16.2,
+    "avg_ret": -0.19
+   },
+   "excess_ret": 0.535,
+   "hit_lift": 5.1
+  },
+  "5": {
+   "n": 1576,
+   "hit_rate": 33.9,
+   "loss_rate": 13.8,
+   "timeout_rate": 52.3,
+   "avg_ret": 0.495,
+   "avg_win_ret": 3.654,
+   "avg_loss_ret": -4.509,
+   "payoff": 0.81,
+   "avg_ret_over_risk": 0.134,
+   "median_hold": 5,
+   "benchmark": {
+    "n": 5265,
+    "hit_rate": 25.0,
+    "avg_ret": -0.302
+   },
+   "excess_ret": 0.797,
+   "hit_lift": 8.9
+  }
+ },
+ "threshold_sweep": {
+  "55": {
+   "1": {
+    "n": 2072,
+    "hit_rate": 4.3
+   },
+   "3": {
+    "n": 2049,
+    "hit_rate": 20.4
+   },
+   "5": {
+    "n": 2028,
+    "hit_rate": 32.5
+   }
+  },
+  "62": {
+   "1": {
+    "n": 1805,
+    "hit_rate": 4.3
+   },
+   "3": {
+    "n": 1790,
+    "hit_rate": 20.9
+   },
+   "5": {
+    "n": 1774,
+    "hit_rate": 33.4
+   }
+  },
+  "68": {
+   "1": {
+    "n": 1602,
+    "hit_rate": 4.4
+   },
+   "3": {
+    "n": 1590,
+    "hit_rate": 21.3
+   },
+   "5": {
+    "n": 1576,
+    "hit_rate": 33.9
+   }
+  },
+  "74": {
+   "1": {
+    "n": 1383,
+    "hit_rate": 4.6
+   },
+   "3": {
+    "n": 1373,
+    "hit_rate": 21.9
+   },
+   "5": {
+    "n": 1365,
+    "hit_rate": 35.2
+   }
+  }
+ },
+ "signal_threshold": 68.0,
+ "universe": {
+  "symbols_with_history": 27,
+  "eval_bars": 5400,
+  "signals_total": 4768
+ },
+ "per_instrument": {
+  "فملی": {
+   "n": 112,
+   "hit": 28.6,
+   "avg_ret": 0.652
+  },
+  "شبندر": {
+   "n": 92,
+   "hit": 27.2,
+   "avg_ret": 0.94
+  },
+  "فولاد": {
+   "n": 90,
+   "hit": 30.0,
+   "avg_ret": 0.321
+  },
+  "خساپا": {
+   "n": 81,
+   "hit": 30.9,
+   "avg_ret": 1.009
+  },
+  "وپاسار": {
+   "n": 80,
+   "hit": 18.8,
+   "avg_ret": -0.036
+  },
+  "خذوب": {
+   "n": 73,
+   "hit": 17.8,
+   "avg_ret": -0.006
+  },
+  "وتجارت": {
+   "n": 72,
+   "hit": 9.7,
+   "avg_ret": 0.966
+  },
+  "نمادپایه‌قرمز": {
+   "n": 68,
+   "hit": 48.5,
+   "avg_ret": 0.713
+  }
+ },
+ "recommended_threshold": 74,
+ "schema": "tabloradar.model-report/v1",
+ "generated_at": "2026-09-22T20:30:38+03:30",
+ "as_of": "offline:offline-snapshot.json (۱۴۰۵-۰۶-۳۰ (شروع هفته معاملاتی))",
+ "mode": "offline",
+ "method": {
+  "fa": "امتیاز هستۀ تکنیکال (RSI، شکاف EMA، بازده ۵ جلسه، موقعیت در بازۀ ۶۰ روزه، شکاف SMA20/50، هیستوگرام MACD، قیمت/SMA20، شیب ۲۰) روی تاریخچه محاسبه می‌شود؛ ورود در بستهِ رابط بعد و ارزیابی ۱/۳/۵ جلسه با حدضرر ۱.۶×ATR و هدف ۱.۲×ATR — بدون استفاده از داده تابلوی روز (چون تاریخچه ندارد) و بدون نگاه به آینده.",
+  "horizons": [
+   1,
+   3,
+   5
+  ],
+  "warmup": 60,
+  "limit_pct_note": "دامنۀ نوسان از نوع هر نماد (سهام ۳٪، صندوق طلا ۱۰٪، …) برای ATR برآوردی"
+ },
+ "provenance": "تاریخچۀ این گزارش از اسنپ‌شات برچسب‌دارِ شبیه‌سازی‌شده است (seed=14050630) — سنجش سازوکار است، نه ادعای عملکرد واقعی؛ با اسکن‌های زنده جایگزین می‌شود.",
+ "journal": {
+  "runs": 2,
+  "entries": 24,
+  "evaluated": 21,
+  "pending": 4,
+  "horizons": {
+   "1": {
+    "n": 21,
+    "hit_rate": 0.0,
+    "loss_rate": 4.8,
+    "timeout_rate": 95.2,
+    "avg_ret": -0.416,
+    "avg_win_ret": 0.0,
+    "avg_loss_ret": -5.445,
+    "payoff": 0.0,
+    "avg_ret_over_risk": -0.115,
+    "median_hold": 1
+   },
+   "3": {
+    "n": 19,
+    "hit_rate": 15.8,
+    "loss_rate": 15.8,
+    "timeout_rate": 68.4,
+    "avg_ret": -0.898,
+    "avg_win_ret": 3.254,
+    "avg_loss_ret": -5.028,
+    "payoff": 0.65,
+    "avg_ret_over_risk": -0.249,
+    "median_hold": 3
+   },
+   "5": {
+    "n": 17,
+    "hit_rate": 29.4,
+    "loss_rate": 29.4,
+    "timeout_rate": 41.2,
+    "avg_ret": -1.093,
+    "avg_win_ret": 3.42,
+    "avg_loss_ret": -5.388,
+    "payoff": 0.63,
+    "avg_ret_over_risk": -0.303,
+    "median_hold": 4
+   }
+  },
+  "note": "ثبت لحظه‌ای با قیمت اسکن؛ ارزیابی با جلسات سپری‌شده. در اولین اجرا «در انتظار» است."
+ },
+ "verdict": {
+  "state": "ok",
+  "fa": "Hit-rate سه‌جلسه‌ای 21٪ از ۵۰٪ کمتر است، اما نسبت به بچ‌مارک lift +5.1pp و بازده مازاد +0.54٪ مثبت است — مدل ارزش افزوده دارد هرچند بسامد اهداف پایین است. آستانۀ پیشنهادیِ جاروب: 74."
+ }
+}
