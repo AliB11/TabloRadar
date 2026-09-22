@@ -229,3 +229,39 @@ test('رکورد TSETMC پس از normalizeInstrument همان اعداد را �
   assert.equal(inst.provenance, 'tsetmc');
   assert.ok(inst.tmax > inst.pc && inst.tmin < inst.pc, 'آستانه‌ها از pc ساخته می‌شوند');
 });
+
+/* ─────────────── ۷. زنجیرهٔ واقعی data.js وقتی «شبکه هست» ─────────────── */
+
+test('زنجیرهٔ data.js: TSETMC رسمی ⇒ رکورد live (نه اسنپ‌شات)', async () => {
+  const { fetchMarketSnapshot } = await import('../assets/js/data.js');
+  const raw = fix('tsetmc_marketwatchinit.format-sample.txt').split('@');
+  const row1 = raw[2].split(';')[0].split(',');
+  /* ۳۱ سطر (آستانهٔ پذیرش زنجیره) — همان قالب رسمی، شناسه‌های متمایز */
+  const prices = Array.from({ length: 31 }, (_, i) =>
+    [String(1111111111111111 + i), ...row1.slice(1)].join(',')).join(';');
+  const mwText = [raw[0], raw[1], prices, raw[3], raw[4]].join('@');
+  const ctText = fix('tsetmc_clienttypeall.format-sample.txt');
+
+  const okResp = body => ({ ok: true, status: 200, text: async () => body, json: async () => JSON.parse(body) });
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    const u = String(url);
+    if (u.includes('MarketWatchInit')) return okResp(mwText);
+    if (u.includes('ClientTypeAll')) return okResp(ctText);
+    throw new TypeError('بدون شبکه');
+  };
+  try {
+    const snap = await fetchMarketSnapshot();
+    assert.equal(snap.kind, 'live');
+    assert.equal(snap.live, true);
+    assert.ok(snap.rows.length >= 31, `rows=${snap.rows.length}`);
+    assert.equal(snap.rows[0].provenance, 'tsetmc');
+    near(snap.rows[0].pc, 10000);
+    near(snap.rows[0].tval, 50_250_000_000);
+    near(snap.rows[0].Buy_I_Volume, 4_000_000);
+    near(snap.indices.index_total.value, 7167410);
+    assert.ok(snap.log.some(l => l.startsWith('proxy:')), 'پروکسی اول امتحان شد');
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
