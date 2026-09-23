@@ -134,9 +134,11 @@ async function scan({ manual = false, withHistory = true } = {}) {
   if (!S.insts.length) {
     U.tableSkeleton('load');
     U.renderNone('load');
-    /* نخستین رندر از اسنپ‌شات محلی تا کاربر هرگز صفحه خالی نبیند */
+    /* رندر اولیه فقط از اسنپ‌شات واقعی؛ نمونهٔ شبیه‌سازی‌شده عمداً نمایش داده نمی‌شود. */
     const primed = await loadOfflineSnapshot();
-    if (primed?.instruments?.length) {
+    const primedIsReal = primed?.kind !== 'simulated' &&
+      !primed?.instruments?.some(i => i?.synthetic === true);
+    if (primed?.instruments?.length && primedIsReal) {
       S.insts = primed.instruments;
       S.meta = { live: false, source: primed.source, at: new Date(), route: 'حافظه محلی',
         kind: primed.kind || 'live-partial', simulatedFields: primed.simulatedFields || null,
@@ -828,17 +830,8 @@ function wireLab() {
     scheduleRetry(v); U.toast(`بازه واکشی: ${v} ثانیه`);
   });
 
-  /* کلید API */
+  /* کلید BrsApi فقط در محیط سرور نگهداری می‌شود؛ هرگز وارد مرورگر/localStorage نمی‌شود. */
   loadConfigFromStorage();
-  const kw = U.$('#api-key');
-  const keyState = () => { const k = U.$('#key-state'); if (k) { k.textContent = CFG.brsKey ? `کلید فعال (${CFG.brsKey.slice(0, 4)}…)` : 'بدون کلید'; k.classList.toggle('c-green', !!CFG.brsKey); } };
-  if (kw) kw.value = CFG.brsKey;
-  U.$('#btn-key-save')?.addEventListener('click', () => {
-    saveConfig({ brsKey: (kw.value || '').trim() }); keyState();
-    U.toast(kw.value ? 'کلید ذخیره شد — واکشی مجدد' : 'کلید پاک شد');
-    scan({ manual: true });
-  });
-  keyState();
 
   /* تور و میان‌بُرهای صفحه‌کلید */
   U.$('#btn-tour')?.addEventListener('click', () => tourStep(0));

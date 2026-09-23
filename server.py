@@ -39,6 +39,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from tsepy import bourse_trader as BT      # noqa: E402  (خوانندهٔ bourse-trader.ir)
+from tsepy import tablokhani_source as TK  # noqa: E402  (صفحات عمومی tablokhani.com)
 from tsepy import tsetmc_live as TL        # noqa: E402  (کلاینت رسمی TSETMC)
 
 HIST_DIR = ROOT / "data" / "history"      # کش دیسکی تاریخچه
@@ -48,7 +49,12 @@ SNAPSHOT = ROOT / "data" / "offline-snapshot.json"
 BRS_BASE = os.environ.get("BRS_API_BASE", "https://Api.BrsApi.ir/Tsetmc/")
 TSETMC_CDN = os.environ.get("TSETMC_CDN", "https://cdn.tsetmc.com/api/")
 TSETMC_LEGACY = "https://old.tsetmc.com/tsev2/data/"
-UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 TabloRadar/3.2"}
+# BrsApi صریحاً User-Agent استاندارد مرورگر را الزامی کرده؛ UA پیش‌فرض پایتون
+# ممکن است توسط فایروال 6G مسدود شود.
+UA = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+}
 TIMEOUT = float(os.environ.get("TR_TIMEOUT", "15"))
 
 _cache: dict[str, tuple[float, object]] = {}
@@ -142,11 +148,11 @@ def source_bourse_trader() -> dict:
     """بورس‌تریدر — منبع پشتیبان: نبض بازار + تابلوهای نمادهای پرگردش (پوشش جزئی، صریح)."""
     ov = BT.market_overview()
     rows: list[dict] = []
-    symbols = [i.get("symbol") for i in (ov.get("top_inflow") or [])[:6] +
-               (ov.get("top_outflow") or [])[:4] if i.get("symbol")]
-    for sym in dict.fromkeys(symbols):          # حداکثر ۱۰ نماد، بدون تکرار
-        if not sym:
-            continue
+    top_items = (ov.get("top_inflow") or [])[:6] + (ov.get("top_outflow") or [])[:4]
+    # مبلغ پول حقیقی متعلق به همان ردیف overview است. قبلاً اینجا متغیر تعریف‌نشدهٔ
+    # item باعث می‌شد کل مسیر پشتیبان بورس‌تریدر بی‌صدا صفر ردیف برگرداند.
+    money_by_symbol = {i.get("symbol"): i.get("money_rial") for i in top_items if i.get("symbol")}
+    for sym in dict.fromkeys(money_by_symbol):  # حداکثر ۱۰ نماد، بدون تکرار
         try:
             snap = BT.fetch_symbol(sym)
         except Exception:  # noqa: BLE001
@@ -154,7 +160,7 @@ def source_bourse_trader() -> dict:
         row = {k: v for k, v in snap.items()
                if k not in ("raw_found", "ambiguous", "source", "symbol")}
         row.update({"l18": sym, "provenance": "bourse-trader", "synthetic": False,
-                    "partial": True, "netRealMoneyToday": item.get("money_rial")})
+                    "partial": True, "netRealMoneyToday": money_by_symbol[sym]})
         rows.append(row)
     if len(rows) < 5:
         raise RuntimeError(f"بورس‌تریدر فقط {len(rows)} نماد داد")
@@ -170,6 +176,20 @@ def source_bourse_trader() -> dict:
         "instruments": rows, "indices": indices, "market_state": {},
         "market_overview": ov,
         "quality": {"instruments": len(rows), "partial": True},
+    }
+
+
+def source_tablokhani() -> dict:
+    """صفحات عمومی tablokhani.com؛ فقط دادهٔ خام عمومی، بدون ابزار/امتیاز اشتراکی."""
+    rows = TK.fetch_market(limit=5, timeout=TIMEOUT)
+    if len(rows) < 5:
+        raise RuntimeError(f"tablokhani فقط {len(rows)} نماد عمومی معتبر داد")
+    return {
+        "kind": "live-partial",
+        "source": f"tablokhani.com (HTML عمومی، پوشش جزئی: {len(rows)} نماد)",
+        "as_of": time.strftime("%Y-%m-%d %H:%M"),
+        "instruments": rows, "indices": {}, "market_state": {},
+        "quality": {"instruments": len(rows), "partial": True, "public_html": True},
     }
 
 
@@ -194,30 +214,25 @@ PROVIDERS = (
     ("brsapi", source_brsapi),
     ("tsetmc", source_tsetmc),
     ("bourse-trader", source_bourse_trader),
+    ("tablokhani", source_tablokhani),
     ("snapshot", source_snapshot),
 )
 
 
 def market_envelope() -> tuple[dict, list[str]]:
-    """اولین منبع زندهٔ موفق؛ در نبود شبکه، اسنپ‌شات محلی (با برچسب صریح)."""
+    """اولین منبع واقعی موفق؛ دادهٔ شبیه‌سازی‌شده هرگز از API بازار عبور نمی‌کند."""
     log: list[str] = []
     for name, fn in PROVIDERS:
-        if name == "snapshot":
-            try:
-                return fn(), log + ["snapshot:ok"]
-            except Exception as e:  # noqa: BLE001
-                log.append(f"snapshot:{type(e).__name__}")
-                break
         try:
-            env = cached(f"market:{name}", 45 if name != "bourse-trader" else 180, fn)
+            env = fn() if name == "snapshot" else cached(
+                f"market:{name}", 45 if name != "bourse-trader" else 180, fn)
+            if env.get("kind") == "simulated" or any(r.get("synthetic") for r in env.get("instruments", [])):
+                log.append(f"{name}:rejected-simulated")
+                continue
             return env, log + [f"{name}:ok"]
         except Exception as e:  # noqa: BLE001
             log.append(f"{name}:{str(e)[:80]}")
-    # اگر هیچ منبع زنده‌ای نبود، همان اسنپ‌شات (حتی simulated) تا داشبورد خالی نماند
-    try:
-        return source_snapshot(), log + ["fallback-snapshot"]
-    except Exception as e:  # noqa: BLE001
-        raise RuntimeError(" | ".join(log + [f"snapshot:{e}"])) from e
+    raise RuntimeError("هیچ منبع واقعی در دسترس نیست | " + " | ".join(log))
 
 
 # ─────────────────────────── کش دیسکی تاریخچه ───────────────────────────
@@ -256,8 +271,29 @@ def hist_cache_write(key: str, body: str, src: str) -> None:
 
 
 def history_upstream(l18: str | None, ins: str | None, days: int) -> tuple[str, str]:
-    """تاریخچهٔ واقعی: TSETMC chart/Financial → BrsApi (اگر کلید) → برچسب منبع."""
+    """تاریخچهٔ واقعی؛ با کلید، BrsApi اولویت قطعی دارد تا مصرف منبع یکدست بماند."""
     errs: list[str] = []
+    # CDN رسمی منبع اول: قرارداد closingPriceDaily با نمونهٔ واقعی تأیید شده است.
+    if ins:
+        try:
+            bars = TL.cdn_daily_history(ins, days, TIMEOUT)
+            if len(bars) >= 20:
+                return json.dumps(bars, ensure_ascii=False), "TSETMC-CDN-closingPriceDaily (raw)"
+            errs.append(f"TSETMC-CDN:{len(bars)} کندل معامله‌شده")
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"TSETMC-CDN:{type(e).__name__}")
+    key = os.environ.get("BRS_API_KEY", "").strip()
+    if l18 and key:
+        try:
+            body = http_get(f"{BRS_BASE}History.php?key={urllib.parse.quote(key)}"
+                            f"&type=0&l18={urllib.parse.quote(l18)}")
+            parsed = json.loads(body)
+            rows = parsed if isinstance(parsed, list) else parsed.get("data") or parsed.get("result") or []
+            if not isinstance(rows, list) or len(rows) < 20:
+                raise RuntimeError(f"پاسخ تاریخچه کوتاه/نامعتبر ({len(rows) if isinstance(rows, list) else 0})")
+            return body, "BrsApi-history"
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"BrsApi:{type(e).__name__}")
     if ins:
         try:
             bars = TL.daily_history(ins, days, TIMEOUT)
@@ -266,14 +302,6 @@ def history_upstream(l18: str | None, ins: str | None, days: int) -> tuple[str, 
             errs.append(f"TSETMC-chart:{len(bars)} کندل")
         except Exception as e:  # noqa: BLE001
             errs.append(f"TSETMC-chart:{type(e).__name__}")
-    key = os.environ.get("BRS_API_KEY", "").strip()
-    if l18 and key:
-        try:
-            body = http_get(f"{BRS_BASE}History.php?key={urllib.parse.quote(key)}"
-                            f"&type=0&l18={urllib.parse.quote(l18)}")
-            return body, "BrsApi-history"
-        except Exception as e:  # noqa: BLE001
-            errs.append(f"BrsApi:{type(e).__name__}")
     raise RuntimeError(" | ".join(errs) or "منبع تاریخچه در دسترس نیست")
 
 
@@ -350,6 +378,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._api_history(qs)
         if path.startswith("/api/info/"):
             return self._api_info(path.rsplit("/", 1)[-1])
+        if path.startswith("/api/book/"):
+            return self._api_book(path.rsplit("/", 1)[-1])
         if path.startswith("/api/symbol/"):
             return self._api_symbol(urllib.parse.unquote(path.rsplit("/", 1)[-1]))
         if path == "/api/overview":
@@ -369,6 +399,8 @@ class Handler(SimpleHTTPRequestHandler):
                 env = cached("market:snapshot", 5, source_snapshot)
             except Exception as e:  # noqa: BLE001
                 return self._json(503, {"error": str(e)[:300]})
+            if env.get("kind") == "simulated" or any(r.get("synthetic") for r in env.get("instruments", [])):
+                return self._json(503, {"error": "اسنپ‌شات محلی شبیه‌سازی‌شده است؛ نمایش دادهٔ غیرواقعی مجاز نیست"})
             env["source"] = f"{env['source']} — upstream غیرفعال"
             return self._json(200, env, {"X-Data-Kind": env["kind"], "X-Data-Source": env["source"]})
         try:
@@ -412,6 +444,19 @@ class Handler(SimpleHTTPRequestHandler):
         if not info:
             return self._json(404, {"error": "شناسنامه در دسترس نبود"})
         return self._json(200, {"kind": "live", "source": "TSETMC InstrumentInfo", "info": info})
+
+    # ── /api/book/<insCode> ──
+    def _api_book(self, ins_code):
+        if getattr(self.server, "no_upstream", False):
+            return self._json(503, {"error": "upstream disabled"})
+        try:
+            book = cached(f"book:{ins_code}", 15, lambda: TL.best_limits(ins_code, TIMEOUT))
+        except Exception as e:  # noqa: BLE001
+            return self._json(502, {"error": str(e)[:400]})
+        if not book:
+            return self._json(404, {"error": "دفتر سفارش CDN در دسترس نبود"})
+        return self._json(200, {"kind": "live", "source": "TSETMC CDN BestLimits", "book": book},
+                          {"X-Data-Source": "TSETMC-CDN-BestLimits", "X-Cache": "15s"})
 
     # ── /api/symbol/<l18> ──
     def _api_symbol(self, l18):
