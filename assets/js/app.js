@@ -131,6 +131,8 @@ async function scan({ manual = false, withHistory = true } = {}) {
   const btn = U.$('#live-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span><span>در حال واکشی …</span>'; }
 
+  /* نمایش موقت از اسنپ‌شات محلیِ واقعی — فقط تا رسیدن داده زنده (شبیه‌سازی‌شده رد می‌شود) */
+  let primedLocal = false;
   if (!S.insts.length) {
     U.tableSkeleton('load');
     U.renderNone('load');
@@ -145,16 +147,18 @@ async function scan({ manual = false, withHistory = true } = {}) {
         historyCount: primed.instruments.filter(i => i.history?.length >= 30).length,
         snapshot: primed.snapshotMeta };
       S.meta.historyOk = S.meta.historyCount > 0;
-    S.fetchElapsed = (performance.now() - S.t0) / 1000;
+      S.fetchElapsed = (performance.now() - S.t0) / 1000;
       S.tAnalyze = performance.now();
       recompute();
       S.lastElapsed = (performance.now() - S.tAnalyze) / 1000;
       renderAll();
-      U.notice('load', `<b>داده محلی نمایش داده شد</b> — در حال تلاش برای اتصال به تابلوی زنده بازار … <span class="spin"></span>`);
+      primedLocal = true;
       U.termLog('INFO', `رندر اولیه از اسنپ‌شات آفلاین (${S.rows.length} سیگنال)`);
     }
   }
-  U.notice('load', `${U.esc('اتصال به منبع داده …')} <span class="spin"></span>`);
+  U.notice('load', primedLocal
+    ? `${U.esc('اتصال به منبع داده …')} نمایش موقت از اسنپ‌شات محلی <span class="spin"></span>`
+    : `${U.esc('اتصال به منابع داده …')} <span class="spin"></span>`);
   U.termLog('INFO', manual ? `درخواست واکشی دستی (#${S.attempt})` : `آغاز پایپ‌لاین تحلیل کمی (#${S.attempt})`);
 
   try {
@@ -272,9 +276,18 @@ const visibleRowsForTicker = () => [...S.insts]
 
 /* ─────────────────────────── ۲. فیلتر و مرتب‌سازی ─────────────────────────── */
 
+/* عملگرهای فیلتر CLI: filter power > 1.4 / ≤ 0.8 / off */
+const POWER_OPS = {
+  '>': (a, b) => a > b, '>=': (a, b) => a >= b, '≥': (a, b) => a >= b,
+  '<': (a, b) => a < b, '<=': (a, b) => a <= b, '≤': (a, b) => a <= b,
+  '=': (a, b) => a === b, '==': (a, b) => a === b,
+};
+
 function filteredRows() {
   const f = S.filter;
   const q = f.q.trim().toLowerCase();
+  const powerFn = f.powerOp ? POWER_OPS[f.powerOp] : null;
+  const powerOn = powerFn && Number.isFinite(f.powerVal);
   let out = S.rows.filter(r => {
     const { inst: s, metrics: m } = r;
     if (q && !(`${s.l18} ${s.l30} ${s.cs}`.toLowerCase().includes(q))) return false;
@@ -283,6 +296,8 @@ function filteredRows() {
     if (f.limitUp && !m.atLimitUp) return false;
     if (f.inflow && !(Number.isFinite(m.netRealMoney) && m.netRealMoney > 0)) return false;
     if (f.queueFree && (m.buyQueueLocked || m.sellQueueLocked)) return false;
+    /* قدرت خریدار: داده غایب ⇒ ردیف رد می‌شود (اعداد ساختگی ممنوع) */
+    if (powerOn && !(Number.isFinite(m.buyerPower) && powerFn(m.buyerPower, f.powerVal))) return false;
     return true;
   });
   const k = S.sort.key, dir = S.sort.dir;
@@ -291,13 +306,17 @@ function filteredRows() {
     power: r.metrics.buyerPower ?? -1, netReal: r.metrics.netRealMoney ?? -Infinity,
     shock: r.metrics.volumeShock ?? -1, cap: r.metrics.capacity ?? -1,
   }[k]);
-  out = out.sort((a, b) => (val(a) - val(b)) * dir);
+  /* مقایسه‌گر سه‌حالته — تفریقِ مستقیم با ±Infinity عدد NaN می‌ساز و ترتیب sort را می‌شکست */
+  out = out.sort((a, b) => {
+    const va = val(a), vb = val(b);
+    return (va < vb ? -1 : va > vb ? 1 : 0) * dir;
+  });
   return out.slice(0, Number(f.top) || 10);
 }
 
 function setSort(key) {
   if (S.sort.key === key) S.sort.dir *= -1;
-  else { S.sort.key = key; S.sort.dir = key === 'chg' || key === 'chgClose' ? -1 : -1; }
+  else { S.sort.key = key; S.sort.dir = -1; }   // جدید: همیشه نزولی (بیشترین اول)
   U.renderTable(filteredRows(), { sortKey: S.sort.key, sortDir: S.sort.dir, onSort: setSort });
 }
 
@@ -390,7 +409,7 @@ function renderJSON() {
   if (S.insts.some(i => !Number.isFinite(i.sectorPE))) missing.push('sectorPE');
   if (S.insts.some(i => !(i.book || []).length)) missing.push('orderBook');
   const payload = {
-    tool: 'TabloRadar v3.0',
+    tool: 'TabloRadar v3.1',
     generated_at: new Date().toISOString(),
     tehran_calendar: tehranDate(),
     source: S.meta.source || '—',
@@ -463,7 +482,17 @@ const CLI = {
   filter: a => {
     const [field, op, num] = a;
     const v = Number(num);
-    if (field === 'power') { S.filter.powerOp = op; S.filter.powerVal = v; return `فیلتر قدرت خریدار ${op} ${v}`; }
+    if (field === 'power') {
+      if (op === 'off' || op === 'clear' || !Number.isFinite(v)) {
+        delete S.filter.powerOp; delete S.filter.powerVal;
+        renderAll();
+        return 'فیلتر قدرت خریدار: خاموش';
+      }
+      if (!POWER_OPS[op]) return 'عملگر نامعتبر — مثال: filter power > 1.4 یا filter power off';
+      S.filter.powerOp = op; S.filter.powerVal = v;
+      renderAll();
+      return `فیلتر قدرت خریدار ${op} ${v}`;
+    }
     if (field === 'inflow') { S.filter.inflow = op !== 'off'; renderAll(); return `فیلتر ورود پول حقیقی: ${S.filter.inflow ? 'روشن' : 'خاموش'}`; }
     if (field === 'limit') { S.filter.limitUp = op !== 'off'; renderAll(); return `فیلتر چسبیده به سقف: ${S.filter.limitUp ? 'روشن' : 'خاموش'}`; }
     if (field === 'queue') { S.filter.queueFree = op !== 'off'; renderAll(); return `فیلتر بدون صف قفل: ${S.filter.queueFree ? 'روشن' : 'خاموش'}`; }

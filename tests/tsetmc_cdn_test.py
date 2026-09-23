@@ -1,8 +1,12 @@
 import json
+import sys
 import unittest
+from pathlib import Path
 from unittest import mock
 
-from tsepy import tsetmc_live as tl
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # اجرای مستقیم بدون PYTHONPATH
+
+from tsepy import tsetmc_live as tl  # noqa: E402
 
 CODE = "46348559193224090"
 

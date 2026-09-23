@@ -86,6 +86,14 @@ def http_get(url: str, accept: str = "application/json,*/*") -> str:
         return res.read().decode("utf-8", "replace")
 
 
+def is_hidden_path(path: str) -> bool:
+    """آیا هر بخشِ مسیر فایل مخفی/نقطه‌دار است؟ (.git، .env، … — هرگز سرو نمی‌شود)"""
+    for seg in urllib.parse.unquote(path).split("/"):
+        if seg and seg.startswith("."):
+            return True
+    return False
+
+
 # ─────────────────────────── منابع داده ───────────────────────────
 # هر منبع یک «پاکت» یکنواخت برمی‌گرداند:
 #   {kind, source, as_of, instruments:[…], indices:{…}, market_state:{…}, quality:{…}}
@@ -219,8 +227,19 @@ PROVIDERS = (
 )
 
 
+# شکست کلِ زنجیره موقتاً کش می‌شود تا تلاش‌های خودکار مرورگر (هر ۳۰ ثانیه)
+# هر بار همه منابع را با تایم‌اوت ۱۵ ثانیه‌ای از نو نکاوبند (ممکن است دقیقه‌ها طول بکشد).
+_MARKET_FAIL: dict[str, object] = {"t": 0.0, "err": ""}
+MARKET_FAIL_TTL = 20.0
+
+
 def market_envelope() -> tuple[dict, list[str]]:
     """اولین منبع واقعی موفق؛ دادهٔ شبیه‌سازی‌شده هرگز از API بازار عبور نمی‌کند."""
+    now = time.time()
+    with _lock:
+        cached_err = str(_MARKET_FAIL.get("err") or "")
+        if cached_err and now - float(_MARKET_FAIL.get("t") or 0) < MARKET_FAIL_TTL:
+            raise RuntimeError(cached_err)
     log: list[str] = []
     for name, fn in PROVIDERS:
         try:
@@ -229,10 +248,16 @@ def market_envelope() -> tuple[dict, list[str]]:
             if env.get("kind") == "simulated" or any(r.get("synthetic") for r in env.get("instruments", [])):
                 log.append(f"{name}:rejected-simulated")
                 continue
+            with _lock:
+                _MARKET_FAIL["err"] = ""
             return env, log + [f"{name}:ok"]
         except Exception as e:  # noqa: BLE001
             log.append(f"{name}:{str(e)[:80]}")
-    raise RuntimeError("هیچ منبع واقعی در دسترس نیست | " + " | ".join(log))
+    err = "هیچ منبع واقعی در دسترس نیست | " + " | ".join(log)
+    with _lock:
+        _MARKET_FAIL["t"] = time.time()
+        _MARKET_FAIL["err"] = err
+    raise RuntimeError(err)
 
 
 # ─────────────────────────── کش دیسکی تاریخچه ───────────────────────────
@@ -355,7 +380,31 @@ class Handler(SimpleHTTPRequestHandler):
         for k, v in (extra or {}).items():
             self.send_header(k, hdr(v))
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":   # HEAD فقط هدر می‌خواهد؛ بدنه ممنوع (RFC 9110)
+            self.wfile.write(body)
+
+    def send_head(self):
+        """سروِ فایل‌های استاتیک — مسیرهای نقطه‌دار (.git/.env/…) هرگز باز نمی‌شوند."""
+        raw_path = urllib.parse.urlparse(self.path).path
+        if is_hidden_path(raw_path):
+            self.send_error(404, "Not found")
+            return None
+        return super().send_head()
+
+    def do_HEAD(self):  # noqa: N802
+        path = urllib.parse.urlparse(self.path).path.rstrip("/") or "/"
+        if path.startswith("/api/"):
+            return self.do_GET()     # مسیر API؛ _json برای HEAD بدنه نمی‌نویسد
+        return super().do_HEAD()
+
+    def do_OPTIONS(self):  # noqa: N802 — پیش‌پرواز CORS برای مصرف‌کنندهٔ بیرونی
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Accept, Content-Type")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def _redirect_into_app(self):
         base = Path(self.directory or os.getcwd())
@@ -390,6 +439,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, {"ok": True, "upstream": not getattr(self.server, "no_upstream", False),
                                     "key_configured": bool(os.environ.get("BRS_API_KEY")),
                                     "snapshot": SNAPSHOT.name, "time": time.time()})
+        if path.startswith("/api/"):
+            return self._json(404, {"error": f"مسیر نامشخص: {path}"})
         return super().do_GET()
 
     # ── /api/market ──

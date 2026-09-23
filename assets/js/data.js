@@ -109,7 +109,8 @@ export async function mapLimit(arr, n, fn) {
 function extractArray(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload) return [];
-  for (const k of ['data', 'result', 'rows', 'InstrumentInfo', 'instrumentList', 'lastData', 'MarketWatch', 'closingPriceDaily', 'bestLimits']) {
+  /* `instruments` = پاکت یکنواخت server.py (/api/market)؛ بدون آن، پاسخ زندهٔ سرور «خالی» تلقی می‌شد. */
+  for (const k of ['instruments', 'data', 'result', 'rows', 'InstrumentInfo', 'instrumentList', 'lastData', 'MarketWatch', 'closingPriceDaily', 'bestLimits']) {
     if (Array.isArray(payload[k])) return payload[k];
   }
   /* سرویس قدیمی TSETMC: رشته‌ای شبیه var instrumentList=[...];  */
@@ -150,13 +151,13 @@ export async function fetchMarketSnapshot() {
 
   /* ۱) پروکسی هم‌ریشه (server.py) — داده را سرور از TSETMC/بورس‌تریدر می‌آورد */
   try {
-    const { data } = await fetchSmart('/api/market', { tag: 'proxy' });
+    const { data, route } = await fetchSmart('/api/market', { tag: 'proxy' });
     const rows = extractArray(data);
     const kind = data?.kind || (data?.instruments?.length ? 'live' : '');
     const minimumRows = kind === 'live-partial' ? 1 : 31;
     if (rows.length >= minimumRows && kind !== 'simulated' && !rows.some(r => r?.synthetic === true)) {
       return {
-        rows, source: data.source || 'پروکسی محلی /api/market', kind,
+        rows, source: data.source || 'پروکسی محلی /api/market', kind, route,
         live: kind === 'live' || kind === 'live-partial',
         asOf: data.as_of || '', indices: data.indices || null,
         marketState: data.market_state || null, overview: data.market_overview || null,
@@ -183,7 +184,7 @@ export async function fetchMarketSnapshot() {
       const rows = buildRows(parsed, clients);
       const st = parsed.state || {};
       return {
-        rows, source: `TSETMC رسمی (${mw.route})`, kind: 'live', live: true, log,
+        rows, source: `TSETMC رسمی (${mw.route})`, kind: 'live', live: true, route: mw.route, log,
         asOf: st.datetimeRaw || '',
         indices: st.indexTotal ? {
           index_total: { fa: 'شاخص کل بورس', value: st.indexTotal, chg_pct: st.indexChangePct },
