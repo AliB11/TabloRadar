@@ -265,3 +265,39 @@ test('زنجیرهٔ data.js: TSETMC رسمی ⇒ رکورد live (نه اسنپ
     globalThis.fetch = savedFetch;
   }
 });
+
+/* ─────────── ۸. پروکسی سرور: پاکت instruments نباید «خالی» تلقی شود ─────────── */
+
+test('زنجیرهٔ data.js: پاسخ موفق /api/market (instruments) پذیرفته می‌شود — نه proxy:empty', async () => {
+  const { fetchMarketSnapshot } = await import('../assets/js/data.js');
+  /* دقیقاً همان شکل پاکت server.py/_api_market */
+  const instruments = Array.from({ length: 40 }, (_, i) => ({
+    l18: `SYM${i}`, l30: `Symbol ${i}`, insCode: String(1000 + i),
+    pc: 1000, pl: 1010, py: 990, tvol: 1e6, tval: 1e9, tno: 100,
+    synthetic: false, provenance: 'tsetmc',
+  }));
+  const body = JSON.stringify({
+    kind: 'live', source: 'TSETMC (MarketWatchInit + ClientTypeAll)', as_of: '۱۴۰۵/۰۶/۳۰ ۱۲:۳۰',
+    instruments, indices: {}, market_state: {}, quality: { instruments: instruments.length },
+    log: ['tsetmc:ok'],
+  });
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    const u = String(url);
+    if (u.includes('/api/market')) {
+      return { ok: true, status: 200, text: async () => body, json: async () => JSON.parse(body) };
+    }
+    throw new TypeError(`بدون شبکه: ${u}`);
+  };
+  try {
+    const snap = await fetchMarketSnapshot();
+    assert.equal(snap.kind, 'live');
+    assert.equal(snap.live, true);
+    assert.equal(snap.rows.length, 40, 'ردیف‌های instruments نباید گم شوند');
+    assert.equal(snap.source, 'TSETMC (MarketWatchInit + ClientTypeAll)');
+    assert.ok(snap.log.includes('proxy:ok(live)'), `log=${JSON.stringify(snap.log)}`);
+    assert.ok(!snap.log.some(l => l === 'proxy:empty'), 'پاسخ زنده سرور نباید خوانده شود');
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});

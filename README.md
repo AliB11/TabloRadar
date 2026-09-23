@@ -63,7 +63,8 @@ python3 main.py --offline --backtest  # کارنامۀ مدل → data/model-rep
 python3 main.py --loop               # اجرای روزانه ۱۲:۳۵ تهران
 
 # ۳) آزمون‌ها
-npm test                # ۵۶ آزمون: هسته + میز پژوهش + رندر + بوت کامل (Node، بدون وابستگی)
+npm test                # ۷۶ آزمون: هسته + میز پژوهش + رندر + بوت کامل (Node، بدون وابستگی)
+npm run test:py         # ۱۰ آزمون پایتون: قرارداد منابع، CDN تی‌اس‌ام‌سی، tablokhani
 npm run check           # node --check روی همه ماژول‌ها
 npm run wiring          # اتصال DOM/CSS، importها، توازن تگ، نشت کلید
 npm run parity          # برابری خروجی JS و Python روی یک داده

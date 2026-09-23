@@ -1,6 +1,10 @@
+import sys
 import unittest
+from pathlib import Path
 
-from tsepy import tablokhani_source as tk
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # اجرای مستقیم بدون PYTHONPATH
+
+from tsepy import tablokhani_source as tk  # noqa: E402
 
 
 class TablokhaniPublicSourceTests(unittest.TestCase):

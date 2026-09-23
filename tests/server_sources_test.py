@@ -1,8 +1,12 @@
 """Regression tests for the live-source failover contract."""
+import sys
 import unittest
+from pathlib import Path
 from unittest import mock
 
-import server
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # اجرای مستقیم بدون PYTHONPATH
+
+import server  # noqa: E402
 
 
 class SourceFallbackTests(unittest.TestCase):
@@ -32,6 +36,7 @@ class SourceFallbackTests(unittest.TestCase):
         failing = lambda: (_ for _ in ()).throw(RuntimeError("offline"))
         providers = (("live", failing), ("snapshot", lambda: fake))
         with mock.patch.object(server, "PROVIDERS", providers):
+            server._MARKET_FAIL["err"] = ""   # انزوا از کش شکستِ سایر تست‌ها
             try:
                 server.market_envelope()
             except RuntimeError as exc:
@@ -39,6 +44,21 @@ class SourceFallbackTests(unittest.TestCase):
                 assert "rejected-simulated" in str(exc)
             else:
                 raise AssertionError("simulated snapshot must never pass as market data")
+            server._MARKET_FAIL["err"] = ""
+
+    def test_hidden_paths_are_rejected(self):
+        """مسیرهای نقطه‌دار (.git/.env/…) هرگز نباید از استاتیک سرو شوند."""
+        for p in ("/.git/config", "/.git/HEAD", "/assets/.env", "/%2e%2e/etc/passwd", "/.netrc"):
+            self.assertTrue(server.is_hidden_path(p), p)
+        # فایل‌های عادی — از جمله server.py که نمایشگر کد به آن نیاز دارد — سالم می‌مانند
+        for p in ("/index.html", "/assets/js/app.js", "/server.py", "/main.py",
+                  "/data/offline-snapshot.json", "/tsepy/tsetmc_live.py"):
+            self.assertFalse(server.is_hidden_path(p), p)
+
+    def test_unknown_api_path_is_json_404_not_html(self):
+        handler_cls = server.Handler
+        self.assertTrue(callable(getattr(handler_cls, "do_HEAD", None)))
+        self.assertTrue(callable(getattr(handler_cls, "do_OPTIONS", None)))
 
 if __name__ == '__main__':
     unittest.main()

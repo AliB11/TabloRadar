@@ -6,6 +6,8 @@
   "private": true,
   "scripts": {
     "test": "node --test --test-force-exit tests/*.test.mjs",
+    "test:py": "python3 tests/server_sources_test.py && python3 tests/tsetmc_cdn_test.py && python3 tests/tablokhani_source_test.py",
+    "test:all": "npm test && npm run test:py",
     "serve": "python3 server.py",
     "snapshot": "python3 tools/make_offline_snapshot.py",
     "backtest": "python3 main.py --offline --backtest",
