@@ -94,66 +94,22 @@ const waitFor = async (pred, ms = 6000) => {
   return false;
 };
 
-test('بوت کامل app.js: رندر، لاگ و fallback آفلاین بدون استثنا', async () => {
+test('بوت app.js: در قطع شبکه دادهٔ شبیه‌سازی‌شده را نمایش نمی‌دهد', async () => {
   await import('../assets/js/app.js');
 
-  /* صبر تا چرخه کامل اسکن تمام شود (رندر اولیه + شکست شبکه + اعلام صادقانه وضعیت) */
-  const settled = await waitFor(() =>
-    /اسنپ‌شات|آفلاین|محلی/.test(q('#live-notice').innerHTML) && /<tr data-r=/.test(q('#signal-rows').innerHTML), 12000);
-  assert.ok(settled, 'چرخه اسکن به وضعیت پایدار نرسید');
-  const rendered = /<tr data-r=/.test(q('#signal-rows').innerHTML);
-  assert.ok(rendered, 'جدول سیگنال‌ها رندر نشد');
+  const settled = await waitFor(() => /هیچ منبعی|پاسخ نداد/.test(q('#live-notice').innerHTML), 12000);
+  assert.ok(settled, 'چرخه اسکن به وضعیت fail-closed نرسید');
+  assert.equal((q('#signal-rows').innerHTML.match(/<tr data-r=/g) || []).length, 0,
+    'در قطع منابع واقعی نباید سیگنال ساختگی رندر شود');
+  assert.ok(!q('#json-body').innerHTML.includes('signals'), 'خروجی تحلیلی ساختگی نباید تولید شود');
 
-  const html = q('#signal-rows').innerHTML;
-  assert.equal((html.match(/<tr data-r=/g) || []).length, 10, 'دقیقاً ۱۰ ردیف');
-  assert.ok(!/undefined|NaN/.test(html), 'نشت undefined/NaN در جدول');
-
-  /* نبض بازار، دونات وزن‌ها، کارت وتوها، تیکر، JSON، لاگ */
-  assert.ok((q('#pulse-grid').innerHTML.match(/pulse-cell/g) || []).length >= 6, 'نبض بازار خالی است');
-  assert.equal((q('#w-donut').innerHTML.match(/<circle/g) || []).length, 6, 'دونات وزن‌ها');
-  assert.ok((q('#veto-cards').innerHTML.match(/veto-card/g) || []).length === 5, 'پنج کارت وتو');
-  assert.ok(q('#ticker-track').innerHTML.includes('tick-item'), 'تیکر خالی است');
-  assert.ok(q('#json-body').innerHTML.includes('&quot;signals&quot;') || q('#json-body').innerHTML.includes('"signals"'),
-    'خروجی JSON رندر نشد');
-  assert.ok(q('#heat-grid').innerHTML.includes('tile'), 'هیت‌مپ صنایع خالی است');
-  assert.ok(q('#pflow').innerHTML.includes('pnode'), 'پایپ‌لاین رندر نشد');
+  const notice = q('#live-notice').innerHTML;
+  assert.match(notice, /هیچ منبعی|پاسخ نداد/, 'خطای منبع واقعی باید صریح باشد');
+  assert.ok(!/اتصال زنده برقرار شد/.test(notice), 'اعلان زندهٔ جعلی ممنوع است');
+  assert.ok(fetched.some(u => u.includes('/api/market')), 'پروکسی محلی امتحان نشد');
+  assert.ok(fetched.some(u => u.includes('offline-snapshot.json')), 'اسنپ‌شات محلی برای تشخیص نوع بررسی نشد');
 
   const logText = JSON.stringify(q('#term-body').children.map(c => c.innerHTML));
-  assert.match(logText, /پایپ‌لاین|اسنپ‌شات/, 'لاگ ترمینال رویداد ثبت نکرده');
-
-  /* وضعیت آفلاین باید صادقانه اعلام شود، نه به‌عنوان داده زنده */
-  const notice = q('#live-notice').innerHTML;
-  assert.ok(/اسنپ‌شات|آفلاین|محلی/.test(notice), `اعلان وضعیت گویا نیست: ${notice.slice(0, 120)}`);
-  assert.ok(!/اتصال زنده برقرار شد/.test(notice), 'نباید «اتصال زنده» اعلام کند وقتی شبکه نبود');
-
-  /* آمار هیرو باید از محاسبه واقعی بیاید، نه عدد ثابت */
-  const stats = ['st-scan', 'st-veto', 'st-conf'].map(id => q(`#${id}`).textContent);
-  assert.ok(stats.every(v => v && v !== '—'), `آمار هیرو پر نشده: ${stats}`);
-  assert.equal(q('#st-scan').textContent, '27', 'تعداد نمادهای اسکن‌شده');
-  assert.ok(Number(q('#st-veto').textContent.replace(/,/g, '')) > 0, 'شمار وتوها باید از محاسبه بیاید');
-
-  /* تلاش برای منابع زنده انجام شده و سپس به اسنپ‌شات رسیده است */
-  assert.ok(fetched.some(u => u.includes('/api/market')), 'پروکسی محلی امتحان نشد');
-  assert.ok(fetched.some(u => u.includes('offline-snapshot.json')), 'اسنپ‌شات محلی خوانده نشد');
-
-  /* CLI ترمینال: دستور واقعی باید اجرا و در لاگ ثبت شود */
-  const before = q('#term-body').children.length;
-  q('#term-input').value = 'top 3';
-  assert.ok(fire('#term-input', 'keydown', { key: 'Enter' }) > 0, 'هندلر ورودی ترمینال ثبت نشده');
-  const after = await waitFor(() => q('#term-body').children.length > before);
-  assert.ok(after, 'دستور CLI در لاگ ترمینال اثر نگذاشت');
-
-  /* تور ۹۰ ثانیه‌ای: اجرا و خروج بدون خطا */
-  assert.ok(fire('#btn-tour', 'click') > 0, 'دکمه تور هندلر ندارد');
-  await wait(150);
-  assert.ok(q('#tour-t').textContent.length > 2, 'عنوان تور ست نشده');
-  fire('#tour-exit', 'click');
-
-  /* تغییر وزن از اسلایدرها باید دوباره محاسبه را اجرا کند */
-  q('#w-tablo').value = '45';
-  fire('#w-tablo', 'input');
-  const rescoring = await waitFor(() => /سناریو|Σw/.test(q('#w-summary').textContent) || q('#w-summary').textContent.length > 3);
-  assert.ok(rescoring, 'خلاصه سناریوی وزن‌ها به‌روز نشد');
-
-  process.exit(0);
+  assert.match(logText, /شکست|ERROR|منبع/, 'شکست منبع باید در ترمینال ثبت شود');
+  assert.equal(errors.length, 0, `استثنای کنترل‌نشده: ${errors.map(String).join(' | ')}`);
 });

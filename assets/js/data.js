@@ -3,12 +3,12 @@
  *
  * زنجیره منبع (از مطمئن‌ترین در دسترس‌ترین):
  *   ۱) پروکسی هم‌ریشه  /api/market       → سرور `server.py` (TSETMC → بورس‌تریدر → اسنپ‌شات)
- *   ۲) BrsApi مستقیم (اگر کاربر کلید بدهد) → `Api.BrsApi.ir/Tsetmc/AllSymbols.php`
+ *   ۲) BrsApi فقط از پروکسی امن سرور → `Api.BrsApi.ir/Tsetmc/AllSymbols.php`
  *   ۳) سرویس رسمی TSETMC (بدون کلید)      → `old.tsetmc.com/tsev2/data/MarketWatchInit.aspx`
  *      + `ClientTypeAll.aspx` برای حقیقی/حقوقی (قالب رسمی؛ پارسر در `sources.js`)
  *   ۴) بورس‌تریدر — نبض بازار و تابلوهای عمومی نمادها (مسیر مستقیم مرورگر با پراکسی CORS)
- *   ۵) اسنپ‌شات محلی `data/offline-snapshot.json` — اگر «شبیه‌سازی» باشد صریح برچسب می‌خورد
- *      (`kind: simulated`، `synthetic: true`) و هرگز به‌جای داده زنده جا نمی‌زند.
+ *   ۵) اسنپ‌شات محلی `data/offline-snapshot.json` — فقط اگر واقعی باشد؛ نمونهٔ شبیه‌سازی‌شده
+ *      (`kind: simulated` یا `synthetic: true`) به‌صورت fail-closed رد می‌شود و اصلاً نمایش داده نمی‌شود.
  *
  * تاریخچه قیمت (برای اندیکاتورهای واقعی):
  *   /api/history?l18=… → cdn.tsetmc.com /api/MarketWatch/GetPriceHistory → BrsApi History.php
@@ -22,7 +22,6 @@ import {
 } from './sources.js';
 
 export const CFG = {
-  brsKey: '',                       // هرگز در ریپو هاردکد نمی‌شود؛ از تنظیمات/محیط
   brsBase: 'https://Api.BrsApi.ir/Tsetmc/',
   brsAlt: 'https://BrsApi.ir/Api/Tsetmc/',
   tsetmcBase: 'https://old.tsetmc.com/tsev2/data/',   // قالب متنی رسمی TSETMC
@@ -110,7 +109,7 @@ export async function mapLimit(arr, n, fn) {
 function extractArray(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload) return [];
-  for (const k of ['data', 'result', 'rows', 'InstrumentInfo', 'instrumentList', 'lastData', 'MarketWatch']) {
+  for (const k of ['data', 'result', 'rows', 'InstrumentInfo', 'instrumentList', 'lastData', 'MarketWatch', 'closingPriceDaily', 'bestLimits']) {
     if (Array.isArray(payload[k])) return payload[k];
   }
   /* سرویس قدیمی TSETMC: رشته‌ای شبیه var instrumentList=[...];  */
@@ -154,7 +153,8 @@ export async function fetchMarketSnapshot() {
     const { data } = await fetchSmart('/api/market', { tag: 'proxy' });
     const rows = extractArray(data);
     const kind = data?.kind || (data?.instruments?.length ? 'live' : '');
-    if (rows.length > 30 && kind !== 'simulated') {
+    const minimumRows = kind === 'live-partial' ? 1 : 31;
+    if (rows.length >= minimumRows && kind !== 'simulated' && !rows.some(r => r?.synthetic === true)) {
       return {
         rows, source: data.source || 'پروکسی محلی /api/market', kind,
         live: kind === 'live' || kind === 'live-partial',
@@ -166,20 +166,7 @@ export async function fetchMarketSnapshot() {
     log.push(rows.length ? `proxy:${kind || 'snapshot'}` : 'proxy:empty');
   } catch (e) { log.push(`proxy:${String(e.message).slice(0, 40)}`); }
 
-  /* ۲) BrsApi با کلید کاربر */
-  if (CFG.brsKey) {
-    const url = `${CFG.brsBase}AllSymbols.php?key=${encodeURIComponent(CFG.brsKey)}&type=1`;
-    const alt = `${CFG.brsAlt}AllSymbols.php?key=${encodeURIComponent(CFG.brsKey)}&type=1`;
-    try {
-      const { data, route } = await fetchSmart(url, { alt, timeout: CFG.directTimeout, maxRoutes: 2 });
-      const rows = extractArray(data);
-      if (rows.length > 30) {
-        return { rows: rows.map(r => ({ ...r, provenance: 'brsapi' })), source: `BrsApi (${route})`,
-          kind: 'live', live: true, log };
-      }
-      log.push('brs:empty');
-    } catch (e) { log.push(`brs:${String(e.message).slice(0, 60)}`); }
-  }
+  /* BrsApi فقط از پروکسی سرور فراخوانی می‌شود؛ قوانین سرویس CORS Proxy و اشتراک کلید را منع می‌کند. */
 
   /* ۳) سرویس رسمی TSETMC — قالب متنی رسمی، بدون کلید (MarketWatchInit + ClientTypeAll) */
   try {
@@ -232,19 +219,20 @@ export async function fetchMarketSnapshot() {
     log.push('bt:partial');
   } catch (e) { log.push(`bt:${String(e.message).slice(0, 60)}`); }
 
-  /* ۵) اسنپ‌شات محلی (آخرین سنگر — با برچسب صریح شبیه‌سازی/آفلاین) */
+  /* ۵) فقط اسنپ‌شات واقعی محلی؛ نمونهٔ شبیه‌سازی‌شده fail-closed رد می‌شود. */
   try {
     const snap = await fetch('data/offline-snapshot.json').then(r => (r.ok ? r.json() : null));
     const rows = snap?.instruments || [];
-    if (rows.length) {
-      const kind = snap.data_kind || (snap.simulated_fields ? 'simulated' : 'live-partial');
+    const kind = snap?.data_kind || (snap?.simulated_fields ? 'simulated' : 'live-partial');
+    const containsSynthetic = rows.some(r => r?.synthetic === true);
+    if (rows.length && kind !== 'simulated' && !containsSynthetic) {
       return {
-        rows: rows.map(r => ({ ...r, provenance: r.provenance || 'offline' })),
-        source: `اسنپ‌شات محلی (${snap.as_of || 'بدون تاریخ'})`,
+        rows: rows.map(r => ({ ...r, provenance: r.provenance || 'offline-live' })),
+        source: `اسنپ‌شات واقعی محلی (${snap.as_of || 'بدون تاریخ'})`,
         kind, live: false, log, snapshotMeta: snap,
-        simulatedFields: snap.simulated_fields || null,
       };
     }
+    if (rows.length) log.push('offline:rejected-simulated');
   } catch (e) { log.push(`offline:${String(e.message).slice(0, 40)}`); }
 
   const err = new Error('هیچ منبع داده‌ای در دسترس نبود');
@@ -280,8 +268,10 @@ export async function fetchInstrumentInfo(insCode) {
   const cached = memo(key, 10 * 60_000, null);
   if (cached) return cached;
   try {
-    const { data } = await fetchSmart(`${CFG.cdnBase}Instrument/GetInstrumentInfo/${insCode}`);
-    const o = data?.instrument || data?.staticInfo || data;
+    let data;
+    try { ({ data } = await fetchSmart(`/api/info/${encodeURIComponent(insCode)}`, { maxRoutes: 1 })); }
+    catch { ({ data } = await fetchSmart(`${CFG.cdnBase}Instrument/GetInstrumentInfo/${insCode}`)); }
+    const o = data?.info || data?.instrumentInfo || data?.instrument || data?.staticInfo || data;
     if (o && typeof o === 'object') cache.set(key, { t: Date.now(), v: o });
     return o || null;
   } catch { return null; }
@@ -291,13 +281,14 @@ export async function fetchInstrumentInfo(insCode) {
 
 const HIST_ALIASES = {
   d: ['xDate', 'date', 'd', 'insDate'],
-  o: ['yValAdjustPz0', 'yValOpen', 'open', 'o', 'pFirst'],
-  h: ['yValAdjustPh0', 'yValHigh', 'high', 'h', 'pMax', 'priceHigh'],
-  l: ['yValAdjustPmin0', 'yValLow', 'low', 'l', 'pMin', 'priceLow'],
-  c: ['yValAdjustPc0', 'yValClosing', 'pc', 'close', 'c', 'pClose', 'closingPrice'],
-  p: ['yValAdjustPl0', 'yValLast', 'pl', 'last', 'pDrCotVal'],
-  v: ['qTotCap', 'zTotTran', 'volume', 'v', 'vol'],
-  val: ['qTotTran5J', 'value', 'val', 'valAlife', 'tval'],
+  o: ['priceFirst', 'yValAdjustPz0', 'yValOpen', 'open', 'o', 'pFirst'],
+  h: ['priceMax', 'yValAdjustPh0', 'yValHigh', 'high', 'h', 'pMax', 'priceHigh'],
+  l: ['priceMin', 'yValAdjustPmin0', 'yValLow', 'low', 'l', 'pMin', 'priceLow'],
+  c: ['pClosing', 'yValAdjustPc0', 'yValClosing', 'pc', 'close', 'c', 'pClose', 'closingPrice'],
+  p: ['pDrCotVal', 'yValAdjustPl0', 'yValLast', 'pl', 'last'],
+  // قرارداد CDN تأییدشده: qTotTran5J=حجم، qTotCap=ارزش (برعکس نگاشت قدیمی).
+  v: ['qTotTran5J', 'volume', 'v', 'vol'],
+  val: ['qTotCap', 'value', 'val', 'valAlife', 'tval'],
 };
 
 const pickAny = (o, keys) => {
@@ -323,8 +314,10 @@ export function normalizeHistory(payload) {
   })).filter(r => Number.isFinite(r.c) && r.c > 0);
 
   rows.sort((a, b) => (a.d || 0) - (b.d || 0));
-  const live = rows.filter(r => !Number.isFinite(r.v) || r.v > 0);   /* حذف روزهای بدون معامله */
-  const base = (live.length >= 20 ? live : rows).map(r => ({
+  // CDN روزهای توقف را با OHLC صفر و close تکراری می‌فرستد؛ کندل جعلی وارد اندیکاتور نمی‌شود.
+  const live = rows.filter(r => Number.isFinite(r.v) && r.v > 0 && Number.isFinite(r.val) && r.val > 0 &&
+    Number.isFinite(r.o) && r.o > 0 && Number.isFinite(r.h) && r.h > 0 && Number.isFinite(r.l) && r.l > 0);
+  const base = live.map(r => ({
     d: r.d,
     o: Number.isFinite(r.o) ? r.o : r.c,
     h: Number.isFinite(r.h) ? Math.max(r.h, r.c) : r.c,
@@ -357,10 +350,6 @@ export async function fetchHistory(inst, snapshotMeta) {
   }
   attempts.push([`/api/history?l18=${encodeURIComponent(inst.l18)}&days=${CFG.historyDays}`,
     d => (Array.isArray(d?.bars) ? d.bars : normalizeHistory(d)), { maxRoutes: 1 }]);
-  if (CFG.brsKey) {
-    attempts.push([`${CFG.brsBase}History.php?key=${encodeURIComponent(CFG.brsKey)}&type=0&l18=${encodeURIComponent(inst.l18)}`,
-      d => normalizeHistory(d), { timeout: CFG.directTimeout, maxRoutes: 2 }]);
-  }
 
   for (const [u, parse, opts] of attempts) {
     try {
@@ -418,7 +407,6 @@ export function loadConfigFromStorage() {
     const raw = localStorage.getItem('tabloradar.cfg');
     if (!raw) return {};
     const o = JSON.parse(raw);
-    if (typeof o.brsKey === 'string') CFG.brsKey = o.brsKey;
     if (Number.isFinite(o.refreshSec)) CFG.refreshSec = o.refreshSec;
     if (Number.isFinite(o.historyDays)) CFG.historyDays = o.historyDays;
     return o;
@@ -429,7 +417,7 @@ export function saveConfig(patch) {
   Object.assign(CFG, patch);
   try {
     localStorage.setItem('tabloradar.cfg', JSON.stringify({
-      brsKey: CFG.brsKey, refreshSec: CFG.refreshSec, historyDays: CFG.historyDays,
+      refreshSec: CFG.refreshSec, historyDays: CFG.historyDays,
     }));
   } catch { /* حالت خصوصی مرورگر */ }
 }

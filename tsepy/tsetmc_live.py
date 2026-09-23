@@ -281,6 +281,50 @@ def daily_history(ins_code: str, days: int = 260, timeout: float = TIMEOUT) -> l
     return bars[-days:] if days and days > 0 else bars
 
 
+def cdn_daily_history(ins_code: str, days: int = 260, timeout: float = TIMEOUT) -> list[dict]:
+    """OHLCV خام CDN؛ روزهای بدون معامله حذف و ترتیب زمانی صعودی می‌شود."""
+    body = http_get(
+        f"{CDN}ClosingPrice/GetClosingPriceDailyList/{urllib.parse.quote(str(ins_code))}/{int(days)}",
+        timeout, referer="https://cdn.tsetmc.com/")
+    js = json.loads(body)
+    rows = js.get("closingPriceDaily") if isinstance(js, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("closingPriceDaily در پاسخ CDN نیست")
+    bars = []
+    for r in rows:
+        d, o, h, l, c = (to_num(r.get(k)) for k in
+                          ("dEven", "priceFirst", "priceMax", "priceMin", "pClosing"))
+        volume, value, trades = (to_num(r.get(k)) for k in ("qTotTran5J", "qTotCap", "zTotTran"))
+        if not all(x == x and x > 0 for x in (d, o, h, l, c, volume, value, trades)):
+            continue
+        bars.append({"d": d, "o": o, "h": h, "l": l, "c": c, "v": volume,
+                     "val": value, "last": to_num(r.get("pDrCotVal")), "trades": trades,
+                     "raw": True})
+    bars.sort(key=lambda b: b["d"])
+    return bars[-days:] if days > 0 else bars
+
+
+def best_limits(ins_code: str, timeout: float = TIMEOUT) -> list[dict]:
+    """پنج سطح سفارش CDN به مدل یکنواخت bid/ask؛ دادهٔ ناقص حدس زده نمی‌شود."""
+    body = http_get(f"{CDN}BestLimits/{urllib.parse.quote(str(ins_code))}",
+                    timeout, referer="https://cdn.tsetmc.com/")
+    js = json.loads(body)
+    rows = js.get("bestLimits") if isinstance(js, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("bestLimits در پاسخ CDN نیست")
+    out = []
+    for r in rows:
+        level = int(to_num(r.get("number"))) if to_num(r.get("number")) == to_num(r.get("number")) else 0
+        if not 1 <= level <= 5:
+            continue
+        out.append({"i": level,
+                    "bid": {"q": to_num(r.get("qTitMeDem")), "p": to_num(r.get("pMeDem")),
+                            "n": to_num(r.get("zOrdMeDem"))},
+                    "ask": {"q": to_num(r.get("qTitMeOf")), "p": to_num(r.get("pMeOf")),
+                            "n": to_num(r.get("zOrdMeOf"))}})
+    return sorted(out, key=lambda x: x["i"])
+
+
 def instrument_info(ins_code: str, timeout: float = TIMEOUT) -> dict | None:
     """شناسنامهٔ نماد از API جدید TSETMC (کلیدها به‌صورت دفاعی خوانده می‌شوند)."""
     try:
@@ -292,30 +336,26 @@ def instrument_info(ins_code: str, timeout: float = TIMEOUT) -> dict | None:
     info = js.get("instrumentInfo") if isinstance(js, dict) else None
     if not isinstance(info, dict):
         return None
-    sector = info.get("sector") or {}
+    sector, eps, threshold = info.get("sector") or {}, info.get("eps") or {}, info.get("staticThreshold") or {}
+    eps_value = eps.get("epsValue") if isinstance(eps, dict) else eps
+    estimated = eps.get("estimatedEPS") if isinstance(eps, dict) else None
     return {
         "insCode": str(info.get("insCode") or ins_code),
-        "l18": info.get("lVal18AFC") or info.get("l18"),
-        "l30": info.get("lVal30") or info.get("l30"),
-        "isin": info.get("cIsin"),
-        "cs": sector.get("lSecVal") or sector.get("cSecVal"),
-        "cs_id": to_num(sector.get("cSecVal")),
-        "flow": info.get("flow"),
-        "cgrValCotTitle": info.get("cgrValCotTitle") or (info.get("cgrValCot") or {}).get("dEven") if isinstance(info.get("cgrValCot"), dict) else info.get("cgrValCotTitle"),
-        "board": info.get("cgrValCotTitle") or (info.get("board") or {}).get("title") if isinstance(info.get("board"), dict) else info.get("cgrValCotTitle"),
-        "eps": to_num(info.get("eps") or (info.get("eps") or {}).get("epsValue") if isinstance(info.get("eps"), dict) else info.get("eps")),
-        "pe": to_num(info.get("pe") or (info.get("pe") or {}).get("pe") if isinstance(info.get("pe"), dict) else info.get("pe")),
-        "sectorPE": to_num((info.get("sectorPE") if not isinstance(info.get("sectorPE"), dict) else info["sectorPE"].get("sectorPE"))),
-        "psr": to_num(info.get("psr")),
-        "nav": to_num(info.get("nav")),
-        "baseVol": to_num(info.get("baseVol") or info.get("bVol")),
-        "zTitad": to_num(info.get("zTitad")),
-        "freeFloat": to_num(info.get("kAjCapValCpsIdx") or info.get("freeFloat")),
-        "minWeek": to_num(info.get("minWeek")),
-        "maxWeek": to_num(info.get("maxWeek")),
-        "minYear": to_num(info.get("minYear")),
-        "maxYear": to_num(info.get("maxYear")),
-        "eps_estimated": info.get("estimatedEPS"),
+        "l18": info.get("lVal18AFC") or info.get("l18"), "l30": info.get("lVal30") or info.get("l30"),
+        "isin": info.get("cIsin"), "cs": sector.get("lSecVal") or sector.get("cSecVal"),
+        "cs_id": to_num(str(sector.get("cSecVal") or "").strip()), "flow": info.get("flow"),
+        "flowTitle": info.get("flowTitle"), "cgrValCotTitle": info.get("cgrValCotTitle"),
+        "board": info.get("cgrValCotTitle"),
+        # epsValue تهی است؛ estimatedEPS با برچسب مستقل نگه داشته می‌شود و جای EPS قطعی جا نمی‌زند.
+        "eps": to_num(eps_value), "eps_estimated": to_num(estimated),
+        "sectorPE": to_num(eps.get("sectorPE") if isinstance(eps, dict) else None),
+        "psr": to_num(eps.get("psr") if isinstance(eps, dict) else info.get("psr")),
+        "tmax": to_num(threshold.get("psGelStaMax")), "tmin": to_num(threshold.get("psGelStaMin")),
+        "nav": to_num(info.get("nav")), "baseVol": to_num(info.get("baseVol")),
+        "zTitad": to_num(info.get("zTitad")), "freeFloat": to_num(info.get("kAjCapValCpsIdx")),
+        "avgVal": to_num(info.get("qTotTran5JAvg")), "minWeek": to_num(info.get("minWeek")),
+        "maxWeek": to_num(info.get("maxWeek")), "minYear": to_num(info.get("minYear")),
+        "maxYear": to_num(info.get("maxYear")), "dEven": to_num(info.get("dEven")),
         "_raw_keys": sorted(info.keys())[:40],
     }
 

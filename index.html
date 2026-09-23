@@ -467,8 +467,8 @@
           <li>سرویس رسمی TSETMC بدون کلید: <span class="mono" dir="ltr">old.tsetmc.com/tsev2/data/MarketWatchInit.aspx</span> +
             <span class="mono" dir="ltr">ClientTypeAll.aspx</span> (قیمت، دفتر سفارش ۵ سطحی، حقیقی/حقوقی)</li>
           <li><span class="mono" dir="ltr">bourse-trader.ir</span> — نبض بازار (شاخص، صف‌ها، ورود پول حقیقی) و تابلوهای عمومی نمادها</li>
-          <li><span class="mono" dir="ltr">Api.BrsApi.ir</span> با کلید شخصی شما (اختیاری؛ localStorage، بدون ذخیره در ریپو)</li>
-          <li>اسنپ‌شات محلی — اگر <b>شبیه‌سازی‌شده</b> باشد با هشدار سرخ اعلام می‌شود و هرگز جای داده زنده جا نمی‌زند</li>
+          <li><span class="mono" dir="ltr">Api.BrsApi.ir</span> با کلید محیطی سرور؛ دارای کش و بدون ارسال کلید به مرورگر</li>
+          <li>اسنپ‌شات محلی — نمونهٔ <b>شبیه‌سازی‌شده</b> به‌طور کامل رد می‌شود و هیچ تحلیلی تولید نمی‌کند</li>
         </ol>
       </div>
       <div class="glass p-6" style="border-radius:18px">
@@ -486,17 +486,9 @@
       </div>
     </div>
     <div class="glass p-5 reveal" style="margin-top:18px;border-radius:16px">
-      <div class="row-between" style="gap:12px;flex-wrap:wrap">
-        <div class="row" style="gap:10px">
-          <i data-lucide="key-round" style="width:15px;height:15px;color:var(--faint)"></i>
-          <span class="small muted">کلید BrsApi (اختیاری) — فقط در مرورگر شما ذخیره می‌شود</span>
-        </div>
-        <div class="row" style="gap:8px">
-          <input id="api-key" type="password" placeholder="API key" autocomplete="off"
-                 style="background:rgba(255,255,255,.03);border:1px solid var(--line2);color:var(--ink);border-radius:10px;padding:8px 11px;font-size:12px;font-family:var(--mono);width:230px" aria-label="کلید API" />
-          <button class="btn-mini" id="btn-key-save">ذخیره</button>
-          <span class="chip" id="key-state">بدون کلید</span>
-        </div>
+      <div class="row" style="gap:10px">
+        <i data-lucide="shield-check" style="width:15px;height:15px;color:var(--green)"></i>
+        <span class="small muted">کلید BrsApi فقط از متغیر محیطی <span class="mono" dir="ltr">BRS_API_KEY</span> در سرور خوانده می‌شود؛ هرگز به مرورگر، localStorage، لاگ یا خروجی داده ارسال نمی‌شود.</span>
       </div>
     </div>
   </div>
