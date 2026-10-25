@@ -437,7 +437,7 @@ function renderJSON() {
   if (S.insts.some(i => !Number.isFinite(i.sectorPE))) missing.push('sectorPE');
   if (S.insts.some(i => !(i.book || []).length)) missing.push('orderBook');
   const payload = {
-    tool: 'TabloRadar v4.0',
+    tool: 'TabloRadar v4.1',
     generated_at: new Date().toISOString(),
     tehran_calendar: tehranDate(),
     source: S.meta.source || '—',
@@ -590,7 +590,7 @@ const TOUR = [
   { sel: '#w-sliders', t: 'سناریوی وزن‌ها', d: 'مدل جعبه سیاه نیست. وزن خودتان را بدهید و ببینید چه می‌شود.' },
   { sel: '#sc-card', t: 'کارنامۀ مدل', d: 'خودِ ادعا هم سنجیده می‌شود: walk-forward روی تاریخچه، hit-rate سه‌جلسه‌ای و مازاد بر بازار — پیش از آن‌که به امتیاز اعتماد کنید، کارنامه را ببینید.' },
   { sel: '#view-radar', t: 'رادار صف و کد‌به‌کد', d: 'سنگین‌ترین صف‌های خرید، الگوهای کد‌به‌کد و نمادهای منتظر تایید فردا.' },
-  { sel: '#data', t: 'شفافیت داده', d: 'منبع، زمان، مسیر و فیلدهای غایب همیشه اعلام می‌شود.' },
+  { sel: '#output', t: 'ترمینال و خروجی', d: 'دستور بزنید: filter power>1.3 یا explain فولاد؛ خروجی JSON شامل منبع، زمان و فیلدهای غایب است — شفافیت اینجا زندگی می‌کند.' },
 ];
 
 let tourIdx = -1;
@@ -638,56 +638,6 @@ function tourStep(i) {
   U.icons();
 }
 
-/* ─────────────────────────── ۷. نمایشگر کد ─────────────────────────── */
-
-const CODE_LIST = [
-  'assets/js/engine.js', 'assets/js/tse.js', 'assets/js/indicators.js',
-  'assets/js/data.js', 'assets/js/ui.js', 'assets/js/scorecard.js', 'assets/js/alerts.js',
-  'assets/js/events.js', 'assets/js/compare.js', 'assets/js/app.js', 'server.py', 'main.py',
-  'tsepy/scoring_engine.py', 'tsepy/backtest.py',
-];
-
-/** فایل‌های واقعی ریپو را می‌خواند؛ اگر باندل آفلاین ساخته شده باشد از همان استفاده می‌شود */
-async function loadCodeFiles() {
-  if (Array.isArray(window.__TR_CODE) && window.__TR_CODE.length) return window.__TR_CODE;
-  const out = [];
-  for (const path of CODE_LIST) {
-    try {
-      const res = await fetch(`./${path}`);
-      if (!res.ok) continue;
-      out.push({ name: path, lang: path.endsWith('.py') ? 'python' : 'javascript', src: await res.text() });
-    } catch { /* file:// یا نبود سرور */ }
-  }
-  return out;
-}
-
-async function codeViewer() {
-  const tabs = U.$('#code-tabs');
-  if (!tabs) return;
-  const files = await loadCodeFiles();
-  if (!files.length) {
-    tabs.innerHTML = `<span class="codetab">برای نمایش کد منبع، داشبورد را با «python3 server.py» اجرا کنید</span>`;
-    return;
-  }
-  tabs.innerHTML = files.map((f, i) =>
-    `<button class="codetab" role="tab" id="ct-${i}" aria-selected="${i === 0}" data-id="${i}">${U.esc(f.name.split('/').pop())}</button>`).join('');
-  let cur = '';
-  const load = i => {
-    const f = files[i] || files[0];
-    cur = f.src;
-    U.$('#code-title').textContent = `tabloradar / ${f.name}`;
-    const body = U.$('#code-body');
-    body.className = `language-${f.lang}`;
-    try { body.innerHTML = window.hljs ? window.hljs.highlight(f.src, { language: f.lang }).value : U.esc(f.src); }
-    catch { body.textContent = f.src; }
-    U.$('#code-gutter').innerHTML = f.src.split('\n').map((_, j) => `<span>${j + 1}</span>`).join('');
-    tabs.querySelectorAll('.codetab').forEach(b => b.setAttribute('aria-selected', String(+b.dataset.id === i)));
-  };
-  tabs.addEventListener('click', e => { const b = e.target.closest('.codetab'); if (b) load(+b.dataset.id); });
-  load(Math.max(0, files.findIndex(f => f.name.includes('engine.js'))));
-}
-
-
 /* ─────────────────────────── ۸. بوم هیرو ─────────────────────────── */
 
 function heroCanvas() {
@@ -727,20 +677,20 @@ function heroCanvas() {
     const pulsePos = (t % 160) / 160;
     for (const e of net.edges) {
       const strong = e.w > 0.72;
-      ctx.strokeStyle = strong ? 'rgba(22,224,140,.22)' : 'rgba(148,163,184,.06)';
+      ctx.strokeStyle = strong ? 'rgba(20,212,132,.22)' : 'rgba(148,163,184,.06)';
       ctx.lineWidth = strong ? 1.1 : 0.6;
       ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke();
       if (strong) {
         const px = e.a.x + (e.b.x - e.a.x) * pulsePos, py = e.a.y + (e.b.y - e.a.y) * pulsePos;
-        ctx.fillStyle = 'rgba(76,201,255,.5)';
+        ctx.fillStyle = 'rgba(67,194,255,.5)';
         ctx.beginPath(); ctx.arc(px, py, 1.4, 0, 7); ctx.fill();
       }
     }
     net.nodes.forEach((L, li) => L.forEach(nd => {
       const beat = 1 + 0.14 * Math.sin(t / 24 + nd.y / 34 + li);
       const r = (li === net.nodes.length - 1 ? 5.4 : 3.4) * beat;
-      ctx.fillStyle = li === 0 ? 'rgba(76,201,255,.75)'
-        : li === net.nodes.length - 1 ? 'rgba(22,224,140,.9)' : 'rgba(155,140,255,.6)';
+      ctx.fillStyle = li === 0 ? 'rgba(67,194,255,.75)'
+        : li === net.nodes.length - 1 ? 'rgba(20,212,132,.9)' : 'rgba(155,140,255,.6)';
       ctx.beginPath(); ctx.arc(nd.x, nd.y, r, 0, 7); ctx.fill();
     }));
     ctx.fillStyle = 'rgba(233,239,249,.34)'; ctx.font = '10px monospace';
@@ -760,8 +710,8 @@ function heroCanvas() {
       const x = i * STEP + off;
       if (x < -STEP || x > W + STEP) return;
       const up = k.c >= k.o;
-      ctx.strokeStyle = up ? 'rgba(22,224,140,.7)' : 'rgba(255,84,112,.62)';
-      ctx.fillStyle = up ? 'rgba(22,224,140,.5)' : 'rgba(255,84,112,.45)';
+      ctx.strokeStyle = up ? 'rgba(20,212,132,.7)' : 'rgba(255,77,105,.62)';
+      ctx.fillStyle = up ? 'rgba(20,212,132,.5)' : 'rgba(255,77,105,.45)';
       ctx.beginPath(); ctx.moveTo(x + CW / 2, py(k.h)); ctx.lineTo(x + CW / 2, py(k.l)); ctx.stroke();
       ctx.fillRect(x, Math.min(py(k.o), py(k.c)), CW, Math.max(1.6, Math.abs(py(k.o) - py(k.c))));
     });
@@ -914,7 +864,7 @@ function wireLab() {
     if (!e.isIntersecting) return;
     U.$$('.navlink').forEach(a => a.classList.toggle('active', a.getAttribute('href') === `#${e.target.id}`));
   }), { rootMargin: '-40% 0px -55% 0px' });
-  ['pulse', 'signals', 'engine', 'scorecard', 'pipeline', 'data', 'code'].forEach(id => { const el = document.getElementById(id); if (el) spy.observe(el); });
+  ['pulse', 'signals', 'engine', 'scorecard', 'output'].forEach(id => { const el = document.getElementById(id); if (el) spy.observe(el); });
 
   /* تیکر: pause با لمس */
   const tk = U.$('.ticker');
@@ -926,8 +876,6 @@ function wireLab() {
   /* ساعت/وضعیت بازار */
   phaseLoop();
   setInterval(phaseLoop, 1000);
-  U.renderPipeline();
-  codeViewer();
   heroCanvas();
   wireLab();
   U.icons();

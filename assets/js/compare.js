@@ -104,6 +104,6 @@ export function drawCompareSpark(canvas, rows) {
     ctx.stroke();
   };
   ctx.globalAlpha = .9;
-  line(a, '#16e08c'); line(b, '#4cc9ff');
+  line(a, '#14d484'); line(b, '#43c2ff');
   ctx.globalAlpha = 1;
 }

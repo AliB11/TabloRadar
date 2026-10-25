@@ -185,9 +185,9 @@ export function drawSparks(rows) {
     const x = i => i * (W - 6) / (closes.length - 1) + 3;
     const y = p => H - 4 - ((p - lo + pad) / (hi - lo + 2 * pad)) * (H - 9);
     const rising = closes[closes.length - 1] >= closes[0];
-    const col = rising ? '#16e08c' : '#ff5470';
+    const col = rising ? '#14d484' : '#ff4d69';
     const grd = ctx.createLinearGradient(0, 0, 0, H);
-    grd.addColorStop(0, rising ? 'rgba(22,224,140,.34)' : 'rgba(255,84,112,.28)');
+    grd.addColorStop(0, rising ? 'rgba(20,212,132,.34)' : 'rgba(255,77,105,.28)');
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.beginPath(); ctx.moveTo(x(0), y(closes[0]));
     closes.forEach((p, i) => ctx.lineTo(x(i), y(p)));
@@ -471,7 +471,7 @@ export function renderNone(kind, reason) {
 const heatColor = v => {
   if (!Number.isFinite(v)) return 'rgba(148,163,184,.07)';
   const t = Math.max(-3, Math.min(3, v)) / 3;
-  return t >= 0 ? `rgba(22,224,140,${0.08 + t * 0.42})` : `rgba(255,84,112,${0.08 + -t * 0.42})`;
+  return t >= 0 ? `rgba(20,212,132,${0.08 + t * 0.42})` : `rgba(255,77,105,${0.08 + -t * 0.42})`;
 };
 
 export function renderHeat(sectors, onSelect, selected) {
@@ -545,7 +545,7 @@ export function renderVetoCards(counts) {
   box.innerHTML = VETO_META.map(v => `
     <div class="glass veto-card p-6" style="border-radius:18px">
       <div class="row" style="gap:11px">
-        <span class="ico" style="background:rgba(255,84,112,.09);border:1px solid rgba(255,84,112,.3)">
+        <span class="ico" style="background:rgba(255,77,105,.09);border:1px solid rgba(255,77,105,.3)">
           ${ico(v.icon, 19, 'var(--red)')}</span>
         <b style="font-size:14.5px">${v.fa}</b>
         <span class="mono" style="margin-inline-start:auto;color:var(--red);font-size:20px;direction:ltr">${fmtNum(counts[v.code] || 0)}</span>
@@ -657,7 +657,7 @@ export function renderPipeline() {
     <div class="pnode reveal" style="transition-delay:${(i * 0.07).toFixed(2)}s">
       <div class="glass pcard p-5" style="border-radius:18px">
         <span class="pnum mono" dir="ltr">${String(i + 1).padStart(2, '0')}</span>
-        <span class="ico" style="margin-bottom:14px;background:${hexA(p.color === 'var(--cyan)' ? '#4cc9ff' : p.color === 'var(--green)' ? '#16e08c' : p.color === 'var(--violet)' ? '#9b8cff' : '#ffc14d', .1)};border:1px solid ${hexA(p.color === 'var(--cyan)' ? '#4cc9ff' : p.color === 'var(--green)' ? '#16e08c' : p.color === 'var(--violet)' ? '#9b8cff' : '#ffc14d', .3)}">
+        <span class="ico" style="margin-bottom:14px;background:${hexA(p.color === 'var(--cyan)' ? '#43c2ff' : p.color === 'var(--green)' ? '#14d484' : p.color === 'var(--violet)' ? '#9b8cff' : '#ffc14d', .1)};border:1px solid ${hexA(p.color === 'var(--cyan)' ? '#43c2ff' : p.color === 'var(--green)' ? '#14d484' : p.color === 'var(--violet)' ? '#9b8cff' : '#ffc14d', .3)}">
           ${ico(p.icon, 19, p.color)}</span>
         <b style="font-size:14.5px">${p.fa}</b>
         <p class="mono tiny faint" dir="ltr" style="margin:5px 0 0">${p.file}</p>
@@ -669,7 +669,7 @@ export function renderPipeline() {
 
 export function termLog(lv, msg) {
   const box = $('#term-body'); if (!box) return;
-  const col = { INFO: '#5ecbff', OK: '#16e08c', WARN: '#ffc14d', ERROR: '#ff5470', CMD: '#9b8cff' }[lv] || '#5ecbff';
+  const col = { INFO: '#5ecbff', OK: '#14d484', WARN: '#ffc14d', ERROR: '#ff4d69', CMD: '#9b8cff' }[lv] || '#5ecbff';
   const line = document.createElement('div');
   line.className = 'ln';
   line.innerHTML = `<span class="ts">${tehranTime(new Date())}</span>

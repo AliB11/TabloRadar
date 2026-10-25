@@ -17,10 +17,8 @@
 <link rel="canonical" href="https://tabloradar.ir/" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23071018'/><circle cx='16' cy='16' r='11.5' fill='none' stroke='%2316e08c' stroke-width='2'/><circle cx='21.5' cy='10.5' r='3' fill='%2316e08c'/></svg>" />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300..800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
 <link rel="stylesheet" href="./assets/css/theme.css" />
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"تابلورادار — TabloRadar","alternateName":"TabloRadar","inLanguage":"fa-IR","applicationCategory":"FinanceApplication","operatingSystem":"Web","description":"سامانه کمی اسکن، تابلوخوانی و رتبه‌بندی نمادهای بورس تهران و فرابورس با قواعد رسمی TSETMC","offers":{"@type":"Offer","price":"0","priceCurrency":"IRR"}}</script>
 </head>
@@ -36,16 +34,14 @@
     <a href="#top" class="brand">
       <span class="brand-mark"><i data-lucide="radar" style="width:18px;height:18px;color:var(--green)"></i></span>
       <span>تابلو<span class="grad">رادار</span></span>
-      <span class="mono hide-sm" style="font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:7px;padding:2px 7px">TSE·QUANT v4.0</span>
+      <span class="mono hide-sm" style="font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:7px;padding:2px 7px">TSE·QUANT v4.1</span>
     </a>
     <div class="nav-links">
       <a class="navlink" href="#pulse">نبض بازار</a>
       <a class="navlink" href="#signals">دیده‌بان</a>
       <a class="navlink" href="#engine">موتور امتیاز</a>
       <a class="navlink" href="#scorecard">کارنامۀ مدل</a>
-      <a class="navlink" href="#pipeline">معماری</a>
-      <a class="navlink" href="#data">داده و شفافیت</a>
-      <a class="navlink" href="#code">کد منبع</a>
+      <a class="navlink" href="#output">ترمینال و خروجی</a>
     </div>
     <div class="row" style="gap:9px">
       <div class="mkt-pill" id="mkt-pill">
@@ -80,24 +76,21 @@
       <span class="grad">کالبدشکافی‌شده در کسر ثانیه.</span>
     </h1>
     <p class="lead reveal center mx-auto">
-      تابلورادار <b class="up">دیده‌بان کامل بازار</b>، <b class="up">جریان پول حقیقی–حقوقی</b>،
-      <b class="up">صف‌های خرید و فروش</b> و <b class="up">دفتر سفارش ۵ سطحی</b> را می‌خواند و با توجه به
-      <b class="up">دامنه نوسان ۳٪</b> و <b class="up">حجم مبنای یک</b> (مصوب ۱ دی ۱۴۰۴) به هر نماد
-      امتیاز ۰ تا ۱۰۰، ضریب اطمینان و نقشه معامله (ورود، حد ضرر، پله‌های هدف) می‌دهد.
+      اسکن لحظه‌ای کل تابلو — <b class="up">جریان پول حقیقی</b>، <b class="up">صف‌ها</b> و
+      <b class="up">دفتر سفارش زنده</b> — با امتیاز ۰ تا ۱۰۰، ضریب اطمینان و نقشه معامله برای هر نماد.
     </p>
-    <div class="reveal row center" style="justify-content:center;margin-top:36px">
+    <div class="reveal row center" style="justify-content:center;margin-top:26px">
       <a href="#signals" class="btn btn-primary"><i data-lucide="radar" style="width:16px;height:16px"></i> مشاهده دیده‌بان بازار</a>
-      <a href="#engine" class="btn"><i data-lucide="gauge" style="width:16px;height:16px"></i> چگونه امتیاز می‌دهیم؟</a>
       <button class="btn" id="hero-mode" title="حالت دوم بوم: شبکه عصبی — صرفاً تصویرسازی معماری امتیازدهی است، نه مدل آموزشی فعال">
         <i data-lucide="network" style="width:16px;height:16px"></i> بوم: شبکه عصبی
       </button>
     </div>
 
-    <div class="reveal grid g4" style="margin-top:56px">
-      <div class="glass stat-big"><div class="v grad" id="st-scan" dir="ltr" aria-live="polite">—</div><div class="l">نماد اسکن‌شده</div></div>
-      <div class="glass stat-big"><div class="v" id="st-time" dir="ltr" aria-live="polite">—</div><div class="l">زمان تحلیل — فقط محاسبه، زمان دریافت داده جدا اعلام می‌شود</div></div>
-      <div class="glass stat-big"><div class="v down" id="st-veto" dir="ltr" aria-live="polite">—</div><div class="l">نماد وتو‌شده</div></div>
-      <div class="glass stat-big"><div class="v grad" id="st-conf" dir="ltr" aria-live="polite">—</div><div class="l">میانگین ضریب اطمینان</div></div>
+    <div class="reveal stat-strip">
+      <div class="stat-big"><div class="v grad" id="st-scan" dir="ltr" aria-live="polite">—</div><div class="l">نماد اسکن‌شده</div></div>
+      <div class="stat-big"><div class="v" id="st-time" dir="ltr" aria-live="polite">—</div><div class="l">زمان تحلیل — فقط محاسبه، زمان دریافت داده جدا اعلام می‌شود</div></div>
+      <div class="stat-big"><div class="v down" id="st-veto" dir="ltr" aria-live="polite">—</div><div class="l">نماد وتو‌شده</div></div>
+      <div class="stat-big"><div class="v grad" id="st-conf" dir="ltr" aria-live="polite">—</div><div class="l">میانگین ضریب اطمینان</div></div>
     </div>
   </div>
   <div class="scroll-hint" aria-hidden="true">
@@ -255,7 +248,7 @@
           </div>
           <div class="row" style="gap:6px">
             <span class="tiny faint">سرد</span>
-            <span style="width:88px;height:8px;border-radius:99px;background:linear-gradient(90deg,#ff5470,#8a4a5a,#ffc14d,#16e08c)"></span>
+            <span style="width:88px;height:8px;border-radius:99px;background:linear-gradient(90deg,#ff4d69,#8a4a5a,#ffc14d,#14d484)"></span>
             <span class="tiny faint">گرم</span>
           </div>
         </div>
@@ -451,95 +444,6 @@
   </div>
 </section>
 
-<!-- ══════════════════ داده و شفافیت ══════════════════ -->
-<section id="data" class="section">
-  <div class="wrap">
-    <div class="reveal" style="max-width:70ch">
-      <span class="eyebrow"><i data-lucide="database" style="width:13px;height:13px"></i> شفافیت داده — حرف اول در یک ابزار کمی</span>
-      <h2 class="h2">هر عدد را می‌توانید <span class="grad">ردیابی</span> کنید</h2>
-      <p class="lead">تابلورادار داده را از زنجیره‌ای چندلایه می‌خواند و همیشه می‌گوید کدام لایه پاسخ داده، چه زمانی، و کدام فیلد غایب است.</p>
-    </div>
-    <div class="grid g3 reveal" style="margin-top:34px">
-      <div class="glass p-6" style="border-radius:18px">
-        <b style="font-size:14px">زنجیره منبع</b>
-        <ol class="why" style="margin-top:12px;padding-inline-start:0">
-          <li>پروکسی هم‌ریشه <span class="mono" dir="ltr">/api/market</span> (سرور <span class="mono" dir="ltr">server.py</span>) — TSETMC رسمی → بورس‌تریدر → اسنپ‌شات؛ کلید API در سرور می‌ماند</li>
-          <li>سرویس رسمی TSETMC بدون کلید: <span class="mono" dir="ltr">old.tsetmc.com/tsev2/data/MarketWatchInit.aspx</span> +
-            <span class="mono" dir="ltr">ClientTypeAll.aspx</span> (قیمت، دفتر سفارش ۵ سطحی، حقیقی/حقوقی)</li>
-          <li><b>CDN رسمی TSETMC — مستقیم از مرورگر</b> (<span class="mono" dir="ltr">cdn.tsetmc.com/api</span>، CORS مجاز):
-            اسکن بذری ۴۲۰ نماد پرگردش، شناسنامهٔ رسمی، دفتر سفارش زندهٔ ۵ سطحی و تاریخچهٔ هر نماد — بدون سرور و بدون واسطه</li>
-          <li><span class="mono" dir="ltr">bourse-trader.ir</span> — نبض بازار (شاخص، صف‌ها، ورود پول حقیقی) و تابلوهای عمومی نمادها</li>
-          <li><span class="mono" dir="ltr">Api.BrsApi.ir</span> با کلید محیطی سرور؛ دارای کش و بدون ارسال کلید به مرورگر</li>
-          <li>اسنپ‌شات محلی — نمونهٔ <b>شبیه‌سازی‌شده</b> به‌طور کامل رد می‌شود و هیچ تحلیلی تولید نمی‌کند</li>
-        </ol>
-      </div>
-      <div class="glass p-6" style="border-radius:18px">
-        <b style="font-size:14px">تاریخچه واقعی، نه ساخته‌شده</b>
-        <p class="small muted" style="margin-top:12px">اندیکاتورها روی تاریخچهٔ تعدیل‌شدهٔ واقعی
-        (<span class="mono" dir="ltr">members.tsetmc.com/tsev2/chart/data/Financial.aspx</span> یا <span class="mono" dir="ltr">History</span> رسمی TSETMC، تا ۲۶۰ جلسه) محاسبه می‌شوند.
-        اگر تاریخچه یک نماد نرسد، عامل تکنیکال <b class="warn">«محاسبه‌نشده»</b> می‌شود و ضریب اطمینان افت می‌کند — هیچ عدد ساختگی جای آن را نمی‌گیرد.</p>
-        <p class="tiny faint" style="margin-top:10px">ابزارها: <span class="mono" dir="ltr">python3 tools/check_data_sources.py</span> (آزمون دسترسی منابع)
-        و <span class="mono" dir="ltr">python3 tools/fetch_live_snapshot.py</span> (رونوشت واقعی برای حالت بی‌شبکه).</p>
-      </div>
-      <div class="glass p-6" style="border-radius:18px">
-        <b style="font-size:14px">واحد و انطباق</b>
-        <p class="small muted" style="margin-top:12px">همه قیمت‌ها <b class="up">ریال</b> است (قابل تبدیل به تومان از تنظیمات). ارزش‌ها «میلیارد ریال»، جریان پول «همت».
-        خروجی JSON شامل <span class="mono" dir="ltr">generated_at</span>، نام منبع، و لیست فیلدهای غایب است تا تحلیل‌گر بتواند تکرارپذیری را بسنجد.</p>
-      </div>
-    </div>
-    <div class="glass p-5 reveal" style="margin-top:18px;border-radius:16px">
-      <div class="row" style="gap:10px">
-        <i data-lucide="shield-check" style="width:15px;height:15px;color:var(--green)"></i>
-        <span class="small muted">کلید BrsApi فقط از متغیر محیطی <span class="mono" dir="ltr">BRS_API_KEY</span> در سرور خوانده می‌شود؛ هرگز به مرورگر، localStorage، لاگ یا خروجی داده ارسال نمی‌شود.</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ══════════════════ معماری ══════════════════ -->
-<section id="pipeline" class="section section-tint">
-  <div class="wrap">
-    <div class="reveal center" style="max-width:66ch;margin-inline:auto">
-      <span class="eyebrow"><i data-lucide="git-branch" style="width:13px;height:13px"></i> معماری — از CDN تا سیگنال</span>
-      <h2 class="h2">هفت گام، هر گام یک فایل مستقل و قابل‌آزمون</h2>
-      <p class="lead mx-auto">هسته محاسبه در ماژول‌های ES است و با <span class="mono" dir="ltr">node --test</span> پوشش آزمون گرفته؛ پایتون لایه جمع‌آوری/برنامه‌ریزی زمان‌بندی است.</p>
-    </div>
-    <div class="pflow reveal" style="margin-top:48px" id="pflow">
-      <span class="pflow-line" aria-hidden="true"></span>
-    </div>
-  </div>
-</section>
-
-<!-- ══════════════════ کد منبع ══════════════════ -->
-<section id="code" class="section">
-  <div class="wrap" style="max-width:1080px">
-    <div class="reveal center" style="max-width:66ch;margin-inline:auto">
-      <span class="eyebrow"><i data-lucide="terminal" style="width:13px;height:13px"></i> کد منبع واقعی پروژه</span>
-      <h2 class="h2">هسته JS، پایپ‌لاین پایتون، پروکسی امن</h2>
-      <p class="lead mx-auto">نمایشگر، فایل‌های واقعی ریپو را در زمان اجرا می‌خواند (با <span class="mono" dir="ltr">python3 server.py</span> یا هر سرور استاتیک). برای استفاده آفلاین می‌توانید باندل بسازید: <span class="mono" dir="ltr">python3 tools/inline_code.py</span></p>
-    </div>
-    <div class="codewin reveal" style="margin-top:38px" dir="ltr">
-      <div class="codewin-hd">
-        <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
-        <span class="mono" style="font-size:11.5px;color:var(--faint)" id="code-title">tabloradar / engine.js</span>
-        <span class="pill mono">ES2022 · Python 3.11</span>
-        <button class="btn-mini" id="copy-btn" style="margin-inline-start:auto"><i data-lucide="copy" style="width:12px;height:12px"></i><span id="copy-label">کپی</span></button>
-      </div>
-      <div class="codetabs" id="code-tabs" role="tablist" aria-label="فایل‌های منبع"></div>
-      <div class="codearea">
-        <div class="gutter" id="code-gutter" aria-hidden="true"></div>
-        <pre class="codebody"><code class="language-javascript" id="code-body"></code></pre>
-      </div>
-    </div>
-    <div class="reveal row center" style="margin-top:20px;font-size:12.5px;color:var(--faint)">
-      <span>اجرای محلی:</span>
-      <code class="mono chip" dir="ltr">python3 server.py</code>
-      <span>برای داشبورد + پروکسی داده ·</span>
-      <code class="mono chip" dir="ltr">pip install -r requirements.txt &amp;&amp; python3 main.py --loop</code>
-      <span>برای پایپ‌لاین زمان‌بندی‌شده</span>
-    </div>
-  </div>
-</section>
 
 <!-- ══════════════════ خروجی ══════════════════ -->
 <section id="output" class="section section-tint">
@@ -632,9 +536,7 @@
   <div class="cmp-body" id="cmp-body"></div>
 </aside>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://unpkg.com/lucide@latest" onerror="window.__noIcons=1"></script>
 <script type="module" src="./assets/js/app.js"></script>
-<noscript><p style="padding:24px;color:#93a1b9">برای اجرای داشبورد، جاوااسکریپت را فعال کنید یا پایپ‌لاین پایتون (<span dir="ltr">main.py</span>) را اجرا کنید.</p></noscript>
 </body>
 </html>

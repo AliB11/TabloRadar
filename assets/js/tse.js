@@ -158,7 +158,7 @@ export function marketOf(raw) {
 
 /** صنایع اصلی بازار (برای تجمیع و فیلتر) */
 export const SECTOR_COLORS = [
-  '#16e08c', '#4cc9ff', '#9b8cff', '#ffc14d', '#ff5470', '#5ecbff',
+  '#14d484', '#43c2ff', '#9b8cff', '#ffc14d', '#ff4d69', '#5ecbff',
   '#6ee7d0', '#ff8fab', '#c0f07a', '#f5a3ff',
 ];
 

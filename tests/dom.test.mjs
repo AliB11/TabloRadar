@@ -199,10 +199,11 @@ test('همه کلاس‌های تولیدشده در رندر، در CSS تعر�
 });
 
 test('HTML: بخش‌های اصلی، متا، و نبود Tailwind CDN', () => {
-  for (const id of ['pulse-grid', 'signal-rows', 'detail-panel', 'heat-grid', 'w-donut', 'term-body', 'json-body', 'code-tabs'])
+  for (const id of ['pulse-grid', 'signal-rows', 'detail-panel', 'heat-grid', 'w-donut', 'term-body', ])
     assert.ok(HTML.includes(`id="${id}"`), `بخش #${id} در HTML نیست`);
   assert.ok(HTML.includes('lang="fa" dir="rtl"'));
   assert.ok(HTML.includes('application/ld+json'));
+  assert.ok(HTML.includes('stat-strip'));
   assert.ok(!HTML.includes('@tailwindcss'), 'Tailwind CDN باید حذف شده باشد');
   assert.ok(HTML.includes('assets/css/theme.css'));
   assert.ok(HTML.includes('type="module"'));
