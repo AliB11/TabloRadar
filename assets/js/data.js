@@ -6,12 +6,18 @@
  *   ۲) BrsApi فقط از پروکسی امن سرور → `Api.BrsApi.ir/Tsetmc/AllSymbols.php`
  *   ۳) سرویس رسمی TSETMC (بدون کلید)      → `old.tsetmc.com/tsev2/data/MarketWatchInit.aspx`
  *      + `ClientTypeAll.aspx` برای حقیقی/حقوقی (قالب رسمی؛ پارسر در `sources.js`)
- *   ۴) بورس‌تریدر — نبض بازار و تابلوهای عمومی نمادها (مسیر مستقیم مرورگر با پراکسی CORS)
- *   ۵) اسنپ‌شات محلی `data/offline-snapshot.json` — فقط اگر واقعی باشد؛ نمونهٔ شبیه‌سازی‌شده
+ *   ۴) **اسکن بذری CDN رسمی** (assets/js/cdn.js) → `cdn.tsetmc.com` با CORS مجاز —
+ *      فهرست نماد↔شناسه از data/seed-symbols.json و قیمت/ارزش/حجم واقعی از
+ *      GetClosingPriceDailyList هر شناسه؛ ۱۰۰٪ واقعی با پوشش جزئی (kind: live-cdn)
+ *   ۵) بورس‌تریدر — نبض بازار و تابلوهای عمومی نمادها (مسیر مستقیم مرورگر با پراکسی CORS)
+ *   ۶) اسنپ‌شات محلی `data/offline-snapshot.json` — فقط اگر واقعی باشد؛ نمونهٔ شبیه‌سازی‌شده
  *      (`kind: simulated` یا `synthetic: true`) به‌صورت fail-closed رد می‌شود و اصلاً نمایش داده نمی‌شود.
  *
+ * غنی‌سازی (پس از هر اسکن زنده): شناسنامهٔ رسمی GetInstrumentInfo (EPS/آستانه/۵۲هفته/
+ * شناوری) و دفتر سفارش زندهٔ BestLimits برای پرگردش‌ترین نمادها — از CDN مستقیم.
+ *
  * تاریخچه قیمت (برای اندیکاتورهای واقعی):
- *   /api/history?l18=… → cdn.tsetmc.com /api/MarketWatch/GetPriceHistory → BrsApi History.php
+ *   /api/history?l18=… → cdn.tsetmc.com /api/ClosingPrice/GetClosingPriceDailyList → BrsApi History.php
  */
 
 import { normalizeInstrument, normalizeAll, expandHistory } from './tse.js';
@@ -20,6 +26,10 @@ import {
   parseMarketWatchInit, parseClientTypeAll, buildRows, parseChartCsv,
   btOverviewFromText, btSymbolFromText,
 } from './sources.js';
+import {
+  cdnSeedScan, cdnInfo, cdnBook, applyCdnInfo, applyCdnBook,
+  loadCodemap, saveCodemap,
+} from './cdn.js';
 
 export const CFG = {
   brsBase: 'https://Api.BrsApi.ir/Tsetmc/',
@@ -194,6 +204,33 @@ export async function fetchMarketSnapshot() {
     }
     log.push('tsetmc:empty');
   } catch (e) { log.push(`tsetmc:${String(e.message).slice(0, 60)}`); }
+
+  /* ۳٫۵) اسکن بذری CDN رسمی (cdn.tsetmc.com — CORS مجاز) — ۱۰۰٪ واقعی با پوشش جزئی
+   *      برای هر نمادِ فایل بذری یک درخواست تاریخچه روزانه؛ فقط وقتی منابع فهرست‌دهنده
+   *      (سرور/MarketWatchInit) در دسترس نبودند اجرا می‌شود تا بار بی‌مورد روی CDN نیفتد. */
+  try {
+    const seedRes = await fetch('data/seed-symbols.json')
+      .then(r => (r.ok ? r.json() : null));
+    const seedSymbols = seedRes?.symbols || [];
+    if (seedSymbols.length >= 50) {
+      const scan = await cdnSeedScan({
+        seedSymbols, codemap: loadCodemap(),
+        concurrency: 12,
+        onProgress: (done, total, ok, failed) => {
+          if (done % 100 === 0 || done === total) log.push(`cdn-seed:${done}/${total}(ok:${ok},fail:${failed})`);
+        },
+      });
+      if (scan.rows.length >= 30) {
+        return {
+          rows: scan.rows, source: `CDN رسمی TSETMC (اسکن بذری ${scan.ok} نماد)`,
+          kind: 'live-cdn', live: true, route: 'cdn.tsetmc.com مستقیم', log,
+          asOf: scan.asOf, indices: null,
+          marketState: null, overview: null,
+        };
+      }
+      log.push(`cdn-seed:insufficient(${scan.ok})`);
+    } else log.push('cdn-seed:no-seedfile');
+  } catch (e) { log.push(`cdn-seed:${String(e.message).slice(0, 60)}`); }
 
   /* ۴) بورس‌تریدر — نبض بازار + تابلوهای عمومی نمادهای پرگردش (پوشش جزئی، صریح) */
   try {
@@ -376,7 +413,7 @@ export async function loadOfflineSnapshot() {
 }
 
 /** بارگذاری کامل: اسنپ‌شات + تاریخچه نمادهای منتخب (برای ستون‌های تکنیکال واقعی) */
-export async function loadMarket({ historyFor = 0, concurrency = 6, onProgress } = {}) {
+export async function loadMarket({ historyFor = 0, concurrency = 6, onProgress, enrichFor = 0, onEnrich } = {}) {
   const snap = await fetchMarketSnapshot();
   let insts = normalizeAll(snap.rows);
 
@@ -396,6 +433,23 @@ export async function loadMarket({ historyFor = 0, concurrency = 6, onProgress }
       if (bars) inst.history = bars.map(b => ({ ...b }));
       done++; onProgress?.(done, need.length, inst.l18);
     });
+  }
+
+  /* غنی‌سازی CDN: شناسنامهٔ رسمی (EPS/آستانه/۵۲هفته/شناوری) + دفتر سفارش زندهٔ ۵ سطحی
+   * برای نمادهای پرگردش — از مسیر مستقیم مرورگر (CORS مجاز) حتی بدون سرور. */
+  if (enrichFor > 0 && snap.live) {
+    const targets = insts.filter(i => i.insCode)
+      .sort((a, b) => (b.tval || 0) - (a.tval || 0)).slice(0, enrichFor);
+    let edone = 0;
+    await mapLimit(targets, concurrency, async inst => {
+      const [info, book] = await Promise.allSettled([
+        cdnInfo(inst.insCode), cdnBook(inst.insCode),
+      ]);
+      if (info.status === 'fulfilled') applyCdnInfo(inst, info.value);
+      if (book.status === 'fulfilled') applyCdnBook(inst, book.value);
+      edone++; onEnrich?.(edone, targets.length, inst.l18);
+    });
+    saveCodemap(insts);
   }
 
   return { instruments: insts, ...snap };

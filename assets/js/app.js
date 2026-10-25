@@ -8,6 +8,7 @@ import {
   instrumentMetrics, FACTOR_META,
 } from './engine.js';
 import { loadMarket, loadOfflineSnapshot, CFG, loadConfigFromStorage, saveConfig } from './data.js';
+import { cdnBook, cdnInfo, applyCdnInfo } from './cdn.js';
 import { loadModelReport, renderScorecard } from './scorecard.js';
 import { parseAlert, checkAlerts, alertLabel, alertLine, fireText, loadAlerts, saveAlerts } from './alerts.js';
 import { loadEvents, upcoming, eventItemHtml } from './events.js';
@@ -109,6 +110,22 @@ const detailOpts = () => ({
   watchlist: S.watch, onWatch: toggleWatch, events: S.events,
   cmp: S.cmp, onCmp: toggleCmp,
 });
+
+/** پنل‌های زندهٔ CDN (دفتر سفارش + شناسنامهٔ رسمی) برای نماد انتخاب‌شده — مستقل از اسکن */
+async function refreshLivePanels(row) {
+  const inst = row?.inst;
+  if (!inst?.insCode) return;
+  const [bookR, infoR] = await Promise.allSettled([cdnBook(inst.insCode), cdnInfo(inst.insCode)]);
+  if (S.selected && S.selected !== inst.l18) return;   // کاربر نماد دیگری را باز کرده
+  if (bookR.status === 'fulfilled' && Array.isArray(bookR.value)) U.renderLiveBook(bookR.value, inst);
+  else U.liveBookError(`دفتر سفارش زنده دریافت نشد (${bookR.status === 'rejected' ? String(bookR.reason?.message || bookR.reason).slice(0, 60) : 'پاسخ خالی'})`);
+  if (infoR.status === 'fulfilled' && infoR.value) {
+    applyCdnInfo(inst, infoR.value);                   // حافظه غنی‌تر می‌شود؛ رندر فقط می‌خواند
+    U.renderOfficial(inst, infoR.value);
+  } else {
+    U.officialError(`شناسنامهٔ رسمی دریافت نشد (${infoR.status === 'rejected' ? String(infoR.reason?.message || infoR.reason).slice(0, 60) : 'پاسخ خالی'})`);
+  }
+}
 function openCompare() {
   const [a, b] = S.cmp.map(sym => S.rows.find(r => r.inst.l18 === sym) || S.vetoed.find(r => r.inst.l18 === sym));
   const modal = U.$('#cmp-modal'), scrim = U.$('#cmp-scrim'), body = U.$('#cmp-body');
@@ -165,7 +182,9 @@ async function scan({ manual = false, withHistory = true } = {}) {
     const histN = withHistory ? Number(U.$('#s-histn')?.value || 40) : 0;
     const res = await loadMarket({
       historyFor: histN,
+      enrichFor: 40,   // شناسنامهٔ رسمی + دفتر سفارش زندهٔ CDN برای پرگردش‌ترین‌ها
       onProgress: (done, total, sym) => { if (done % 10 === 0 || done === total) U.termLog('INFO', `تاریخچه ${done}/${total} — ${sym}`); },
+      onEnrich: (done, total) => { if (done === total) U.termLog('OK', `غنی‌سازی CDN: شناسنامه و دفتر سفارش ${done}/${total} نماد پرگردش`); },
     });
     S.insts = res.instruments;
     S.meta = {
@@ -193,6 +212,12 @@ async function scan({ manual = false, withHistory = true } = {}) {
         (${U.esc(S.meta.asOf || 'بدون تاریخ')}). برای داده لحظه‌ای <span class="mono" dir="ltr">python3 server.py</span>
         را اجرا کنید یا کلید BrsApi را در بخش «داده و شفافیت» وارد کنید.
         ${S.meta.snapshot ? `<div class="tiny faint" style="margin-top:6px">${U.esc(S.meta.snapshot.disclaimer || '')}</div>` : ''}`);
+    } else if (S.meta.kind === 'live-cdn') {
+      U.notice('ok', `<b class="up">دادهٔ ۱۰۰٪ واقعی از CDN رسمی TSETMC</b> — ${U.esc(S.meta.source)}
+        · آخرین جلسه: ${U.esc(S.meta.asOf || '—')}. شناسه‌ها واقعی‌اند و واکشی مستقیم مرورگر است (CORS مجاز، بدون واسطه).
+        پوشش جزئی: پرگردش‌ترین نمادها؛ فیلد حقیقی/حقوقی تنها از مسیر سرور/سرویس قدیمی می‌آید و اینجا غایب است
+        (اعتماد کمتر، عدد ساختگی هیچ).
+        <div class="tiny" style="margin-top:6px">برای پوشش کامل بازار <span class="mono" dir="ltr">python3 server.py</span> را اجرا کنید.</div>`);
     } else if (S.meta.kind === 'live-partial') {
       U.notice('warn', `<b class="warn">داده واقعی اما جزئی</b> — منبع: ${U.esc(S.meta.source)}.
         پوشش کامل بازار با TSETMC به دست می‌آید؛ برای دادهٔ کامل/لحظه‌ای
@@ -254,6 +279,7 @@ function renderAll() {
   U.renderWeightSliders(S.weights, S.rules, onWeightChange);
   const top = S.rows.find(r => r.inst.l18 === S.selected) || S.rows[0];
   U.renderDetail(top, detailOpts());
+  refreshLivePanels(top);
   fillSectorFilter();
   renderJSON();
   U.$('#f-count').textContent = S.insts.length
@@ -372,7 +398,9 @@ function toggleWatch(sym) {
   S.watch = S.watch.includes(sym) ? S.watch.filter(x => x !== sym) : [...S.watch, sym];
   try { localStorage.setItem('tr.watch', JSON.stringify(S.watch)); } catch { /* noop */ }
   U.toast(S.watch.includes(sym) ? `${sym} به دیده‌بان اضافه شد` : `${sym} از دیده‌بان حذف شد`);
-  U.renderDetail(S.rows.find(r => r.inst.l18 === S.selected) || S.rows[0], detailOpts());
+  const row = S.rows.find(r => r.inst.l18 === S.selected) || S.rows[0];
+  U.renderDetail(row, detailOpts());
+  refreshLivePanels(row);
 }
 
 /* ─────────────────────────── ۳. زمان‌بندی ─────────────────────────── */
@@ -409,7 +437,7 @@ function renderJSON() {
   if (S.insts.some(i => !Number.isFinite(i.sectorPE))) missing.push('sectorPE');
   if (S.insts.some(i => !(i.book || []).length)) missing.push('orderBook');
   const payload = {
-    tool: 'TabloRadar v3.1',
+    tool: 'TabloRadar v4.0',
     generated_at: new Date().toISOString(),
     tehran_calendar: tehranDate(),
     source: S.meta.source || '—',
@@ -502,7 +530,8 @@ const CLI = {
   explain: a => {
     const r = S.rows.find(x => x.inst.l18 === a[0]);
     if (!r) return `نماد ${U.esc(a[0] || '')} در فهرست رتبه‌بندی‌شده نیست`;
-    U.renderDetail(r, detailOpts()); showView('table');
+    S.selected = r.inst.l18;
+    U.renderDetail(r, detailOpts()); showView('table'); refreshLivePanels(r);
     return `${r.inst.l18} — امتیاز ${r.score.total} · اطمینان ${r.score.confidence}%\n` + (r.reasons || []).map(x => `• ${x.text}`).join('\n');
   },
   watch: a => { if (a[0]) toggleWatch(a[0]); return `دیده‌بان: ${S.watch.join(', ') || '—'}`; },
@@ -817,7 +846,7 @@ function wireLab() {
     U.$$('#signal-rows tr').forEach(x => x.classList.remove('active'));
     tr.classList.add('active');
     const row = filteredRows()[+tr.dataset.r];
-    if (row) { S.selected = row.inst.l18; U.renderDetail(row, detailOpts()); }
+    if (row) { S.selected = row.inst.l18; U.renderDetail(row, detailOpts()); refreshLivePanels(row); }
   });
   U.$('#live-notice')?.addEventListener('click', e => { if (e.target.closest('#nt-refresh')) scan({ manual: true }); });
   U.$('#detail-panel')?.addEventListener('click', e => { if (e.target.closest('#dp-retry')) scan({ manual: true }); });

@@ -36,7 +36,7 @@
     <a href="#top" class="brand">
       <span class="brand-mark"><i data-lucide="radar" style="width:18px;height:18px;color:var(--green)"></i></span>
       <span>تابلو<span class="grad">رادار</span></span>
-      <span class="mono hide-sm" style="font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:7px;padding:2px 7px">TSE·QUANT v3.1</span>
+      <span class="mono hide-sm" style="font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:7px;padding:2px 7px">TSE·QUANT v4.0</span>
     </a>
     <div class="nav-links">
       <a class="navlink" href="#pulse">نبض بازار</a>
@@ -466,6 +466,8 @@
           <li>پروکسی هم‌ریشه <span class="mono" dir="ltr">/api/market</span> (سرور <span class="mono" dir="ltr">server.py</span>) — TSETMC رسمی → بورس‌تریدر → اسنپ‌شات؛ کلید API در سرور می‌ماند</li>
           <li>سرویس رسمی TSETMC بدون کلید: <span class="mono" dir="ltr">old.tsetmc.com/tsev2/data/MarketWatchInit.aspx</span> +
             <span class="mono" dir="ltr">ClientTypeAll.aspx</span> (قیمت، دفتر سفارش ۵ سطحی، حقیقی/حقوقی)</li>
+          <li><b>CDN رسمی TSETMC — مستقیم از مرورگر</b> (<span class="mono" dir="ltr">cdn.tsetmc.com/api</span>، CORS مجاز):
+            اسکن بذری ۴۲۰ نماد پرگردش، شناسنامهٔ رسمی، دفتر سفارش زندهٔ ۵ سطحی و تاریخچهٔ هر نماد — بدون سرور و بدون واسطه</li>
           <li><span class="mono" dir="ltr">bourse-trader.ir</span> — نبض بازار (شاخص، صف‌ها، ورود پول حقیقی) و تابلوهای عمومی نمادها</li>
           <li><span class="mono" dir="ltr">Api.BrsApi.ir</span> با کلید محیطی سرور؛ دارای کش و بدون ارسال کلید به مرورگر</li>
           <li>اسنپ‌شات محلی — نمونهٔ <b>شبیه‌سازی‌شده</b> به‌طور کامل رد می‌شود و هیچ تحلیلی تولید نمی‌کند</li>

@@ -3,18 +3,32 @@
 **کالبدشکافی کمی تابلوی بورس تهران و فرابورس — دیده‌بان، رتبه‌بندی و نقشه معامله با قواعد واقعی تالار (۱۴۰۵)**
 
 یک داشبورد تک‌صفحه‌ای (Landing + Live Dashboard) با هسته ماژولار ES و یک پایپ‌لاین پایتون stdlib که **همان فرمول‌ها** را اجرا می‌کند.
-داده از BrsApi، سرویس‌های عمومی TSETMC، بورس‌تریدر و HTML عمومی tablokhani.com خوانده می‌شود؛ کلید API هرگز در ریپو یا مرورگر نمی‌ماند.
+داده از **CDN رسمی TSETMC (مستقیم از مرورگر — CORS مجاز)**، سرویس‌های عمومی TSETMC، بورس‌تریدر و HTML عمومی tablokhani.com خوانده می‌شود؛ کلید API هرگز در ریپو یا مرورگر نمی‌ماند.
 
 > ⚠️ **سلب مسئولیت:** ابزار تحلیل داده است، نه توصیه سرمایه‌گذاری. مسئولیت هر تصمیم معاملاتی با کاربر است.
 
 ---
 
+## v4.0 — دادهٔ زندهٔ CDN بدون سرور (تغییر معماری)
+
+یافتهٔ کلیدی: سه endpoint رسمی `cdn.tsetmc.com/api/...` روی GET هدر `Access-Control-Allow-Origin: *` می‌فرستند
+(مستند در [`docs/TSETMC_CDN_CONTRACT.md`](./docs/TSETMC_CDN_CONTRACT.md)). نتیجه:
+
+* **اسکن بذری CDN** (`assets/js/cdn.js`): اگر سرور و سرویس فهرست‌دهنده در دسترس نباشند، داشبورد برای
+  ۴۲۰ نماد پرگردش (`data/seed-symbols.json` — نقشهٔ واقعی نماد↔شناسه از MarketWatchInit رسمی) مستقیم
+  از CDN قیمت/ارزش/حجم واقعی می‌گیرد — `kind: live-cdn`، صددرصد واقعی با پوشش جزئی و اعلام صریح.
+* **دفتر سفارش زندهٔ ۵ سطحی** و **شناسنامهٔ رسمی** (EPS قطعی/برآوردی، P/E صنعت، شناوری، کف/سقف ۵۲هفته،
+  میانگین حجم ۳۰ جلسه، آستانهٔ مجاز رسمی) در پنل کالبدشکافی — واکشی مستقیم مرورگر با یک کلیک.
+* **غنی‌سازی خودکار**: پس از هر اسکن زنده، شناسنامه + دفتر سفارش پرگردش‌ترین نمادها از CDN تکمیل می‌شود
+  و نگاشت نماد↔شناسه در `localStorage` ذخیره می‌شود (کتابخانهٔ خودآموز؛ جایگزین حدس زدن شناسه).
+* فایل بذری با `node tools/build_seed.mjs` بازتولید می‌شود.
+
 ## دادهٔ واقعی یا ساختگی؟ (پاسخ صریح)
 
-* **در کد، همهٔ مسیرها واقعی‌اند**: `assets/js/data.js` و `server.py` و `tsepy/data_provider.py` از سرویس‌های رسمی TSETMC و
+* **در کد، همهٔ مسیرها واقعی‌اند**: `assets/js/data.js` و `assets/js/cdn.js` و `server.py` و `tsepy/data_provider.py` از سرویس‌های رسمی TSETMC (از جمله CDN مستقیم)،
   `Api.BrsApi.ir` و صفحه‌های عمومی `bourse-trader.ir` داده می‌خوانند (پارس‌گرهای هر دو سرویس در
   `assets/js/sources.js` و `tsepy/tsetmc_live.py` و `tsepy/bourse_trader.py` با قطعات واقعی آزمون شده‌اند:
-  `python3 tools/sources_selftest.py` و `npm test`).
+  `npm test` شامل ۱۱ آزمون CDN روی فیکسچرهای واقعی است).
 * **سناریوی قطعی شبکه**: آخرین سنگر، فایل `data/offline-snapshot.json` است. نسخهٔ همراه ریپو **شبیه‌سازی‌شده** است —
   لنگرهای قیمت/ارزش معاملات از گزارش‌ها گرفته شده، اما **دفتر سفارش، تفکیک حقیقی/حقوقی و تاریخچه ساختهٔ شبیه‌سازند**.
   این فایل اکنون `data_kind: "simulated"`، `synthetic: true` روی همهٔ رکوردها و فهرست `simulated_fields` دارد.
@@ -63,28 +77,27 @@ python3 main.py --offline --backtest  # کارنامۀ مدل → data/model-rep
 python3 main.py --loop               # اجرای روزانه ۱۲:۳۵ تهران
 
 # ۳) آزمون‌ها
-npm test                # ۷۶ آزمون: هسته + میز پژوهش + رندر + بوت کامل (Node، بدون وابستگی)
+npm test                # ۸۷ آزمون: هسته + میز پژوهش + رندر + بوت کامل + کلاینت CDN (Node، بدون وابستگی)
 npm run test:py         # ۱۰ آزمون پایتون: قرارداد منابع، CDN تی‌اس‌ام‌سی، tablokhani
 npm run check           # node --check روی همه ماژول‌ها
 npm run wiring          # اتصال DOM/CSS، importها، توازن تگ، نشت کلید
 npm run parity          # برابری خروجی JS و Python روی یک داده
 npm run parity:sources  # برابری پارس‌گرهای منابع (JS ↔ Python) روی قطعه‌های واقعی
 npm run selftest        # ۲۲ خودآزمون بک‌تست: no-lookahead، قطعیت، دفتر ثبت
-python3 tools/sources_selftest.py   # آزمون پارس‌گر دادهٔ واقعی روی قطعات برداشت‌شده
-python3 tools/check_data_sources.py # کدام منبع روی این ماشین پاسخ می‌دهد؟
-python3 tools/fetch_live_snapshot.py# ساخت اسنپ‌شات واقعی برای اجرای بی‌شبکه
+node tools/build_seed.mjs   # بازتولید data/seed-symbols.json از MarketWatchInit رسمی (نیازمند دسترسی)
 ```
 
 ## ساختار
 
 ```
 index.html                 مارک‌آپ و محتوای سئو (بخش جدید: میز پژوهش #scorecard)
-assets/css/theme.css       سیستم طراحی (بدون Tailwind CDN)
+assets/css/theme.css       سیستم طراحی (بدون Tailwind CDN) + پنل‌های زندهٔ CDN (v4)
 assets/js/tse.js           قواعد بازار + نرمال‌سازی فیلدها + اعداد فارسی
 assets/js/indicators.js    RSI · EMA · SMA · MACD · Bollinger · ATR · slope · vol · MDD
 assets/js/engine.js         سنجه‌های تابلو، وتوها، ۵ عامل، اطمینان، نقشه، پالس، صنایع
+assets/js/cdn.js           کلاینت زندهٔ CDN رسمی TSETMC — اسکن بذری، شناسنامه، دفتر سفارش (CORS مجاز)
 assets/js/sources.js      پارس‌گر منابع واقعی (TSETMC رسمی + بورس‌تریدر) — بدون عدد ساختگی
-assets/js/data.js          زنجیره منبع (پروکسی → BrsApi → TSETMC → بورس‌تریدر → tablokhani عمومی → اسنپ‌شات)، تاریخچه، cache
+assets/js/data.js          زنجیره منبع (پروکسی → BrsApi → TSETMC → اسکن بذری CDN → بورس‌تریدر → اسنپ‌شات)، تاریخچه، cache
 assets/js/scorecard.js     رندر «کارنامۀ مدل» (فقط می‌خواند؛ عدد نمی‌سازد)
 assets/js/alerts.js        موتور هشدار شرطی — پارسر فارسی + ارزیابی + اشتراک تلگرام
 assets/js/events.js        کارت اتفاقات نماد (خواندن data/events.json / منبع دوم)
@@ -105,6 +118,7 @@ docs/TSE_MARKET_RESEARCH.md  تحقیق بازار (منبع‌دار) — مب�
 AUDIT_360.md               پیمایش ۳۶۰ درجه نسخه ۲ (۱۸ یافته + شواهد خط‌به‌خط)
 CREATIVE_PROPOSALS.md      ایده‌ها + وضعیت پیاده‌سازی (نقشۀ ۴ هفته‌ای: تحویل شد)
 data/offline-snapshot.json اسنپ‌شات برچسب‌دار برای حالت بدون شبکه
+data/seed-symbols.json     نقشهٔ واقعی نماد↔شناسهٔ ۴۲۰ نماد پرگردش (ورودی اسکن بذری CDN)
 data/model-report.json     کارنامۀ مدل (خروجی main.py --backtest)
 data/events.json           رویدادهای نماد — برچسب‌دار/شبیه‌سازی (جای‌پذیر با منبع کدال)
 data/history/              کش دیسکی تاریخچۀ /api/history (هفتگی؛ gitignore شده)
@@ -126,7 +140,7 @@ out/                       signals.{json,csv} + دفتر اسکن‌ها runs/ (
 5. **هشدار شرطیِ فارسی:** `alert add وبملت قدرت خریدار > 1.4` — پارسر، ارزیابی پس از هر اسکن، متن آمادهٔ اشتراک تلگرام. هیچ‌جا سرور/توکن ذخیره نمی‌شود (localStorage).
 6. **مقایسۀ دو نماد:** `compare شپنا وبملت` یا دکمۀ «مقایسه» در کالبدشکافی — بیست سنجه با برندۀ هر سطر + منحنی ۶۰ جلسه.
 
-**زنجیره داده:** `server.py /api/market` ← `Api.BrsApi.ir` (کلید کاربر) ← `service.tsetmc.com` ← `data/offline-snapshot.json`.
+**زنجیره داده:** `server.py /api/market` ← `Api.BrsApi.ir` (کلید کاربر) ← `service.tsetmc.com` ← `cdn.tsetmc.com` (اسکن بذری، مستقیم مرورگر) ← `data/offline-snapshot.json`.
 هر لایه که پاسخ دهد در هدر `X-Data-Source` و در UI («منبع: …») نوشته می‌شود؛ اگر شبکه نرسد، داشبورد با **همان فرمول‌ها روی داده آفلاین** اجرا می‌شود و صریح اعلام می‌کند که آفلاین است.
 
 ## APIها و فیلدهای مصرفی
@@ -134,9 +148,10 @@ out/                       signals.{json,csv} + دفتر اسکن‌ها runs/ (
 | کاربرد | آدرس |
 |---|---|
 | اسکن کامل بازار | `BrsApi AllSymbols.php?type=1` · `TSETMC instinfodata.aspx` |
-| تاریخچه کندل | `cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceInfoList/{insCode}/{n}` · `BrsApi History.php` |
-| اطلاعات تکمیلی (EPS، صنعت، آستانه‌ها) | `cdn.tsetmc.com/api/Instrument/GetInstrumentInfo/{insCode}` |
+| تاریخچه کندل | `cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceDailyList/{insCode}/{n}` · `BrsApi History.php` |
+| اطلاعات تکمیلی (EPS، صنعت، آستانه‌ها، ۵۲هفته) | `cdn.tsetmc.com/api/Instrument/GetInstrumentInfo/{insCode}` |
 | دفتر سفارش | `cdn.tsetmc.com/api/BestLimits/{insCode}` |
+| فهرست نماد↔شناسه (بدون سرور) | `data/seed-symbols.json` + کش خودآموز `localStorage` |
 
 نام‌های فیلد در منابع مختلف متفاوت است (`pc`/`pClosing`، `pl`/`pDrCotVal`، `tmax`/`psGelStaMax`، `Buy_I_Volume`/`BuyIVolume`)؛
 نگاشت در `normalizeInstrument()` انجام می‌شود و بقیه کد فقط مدل یکدست را می‌بیند.

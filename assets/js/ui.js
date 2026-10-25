@@ -274,6 +274,8 @@ export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onC
       ${Number.isFinite(m.capacity) && m.capacity < .3 ? ' · <span class="warn">ظرفیت حرکت امروز کم است؛ ورود به جلسه بعد موکول شود.</span>' : ''}</p>
     </div>` : ''}
 
+    ${livePanelsHtml(s)}
+
     ${reasons && reasons.length ? `<div><b style="font-size:13.5px">چرا این امتیاز؟</b>
       <ul class="why" style="margin-top:9px">${reasons.slice(0, 7).map(x => `<li class="${x.tone}">${esc(x.text)}</li>`).join('')}</ul></div>` : ''}
 
@@ -302,6 +304,130 @@ export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onC
     try { await navigator.clipboard.writeText(txt); toast('متن تحلیل کپی شد'); }
     catch { toast('کپی ناموفق بود — متن را انتخاب کنید'); }
   });
+}
+
+/* ═════════════════۳٫ب پنل‌های زندهٔ CDN (دفتر سفارش + شناسنامهٔ رسمی) ═════════════════ */
+
+/** جای‌نگهدار پنل‌های زنده داخل کالبدشکافی؛ محتوا پس از واکشی CDN پر می‌شود */
+function livePanelsHtml(s) {
+  if (!s?.insCode) return '';
+  return `<div class="livebox" id="dp-live">
+    <div class="row-between" style="margin-bottom:10px">
+      <b style="font-size:13.5px" class="row" >${ico('book-open', 13, 'var(--cyan)')} دفتر سفارش زندهٔ ۵ سطحی</b>
+      <span class="live-stamp" id="dp-live-stamp"><span class="spin"></span> واکشی از CDN …</span>
+    </div>
+    <div id="dp-live-body"><div class="live-skel"><span class="skel" style="width:88%"></span><span class="skel" style="width:72%"></span><span class="skel" style="width:80%"></span></div></div>
+  </div>
+  <div class="livebox" id="dp-official">
+    <div class="row-between" style="margin-bottom:10px">
+      <b style="font-size:13.5px" class="row" >${ico('file-badge', 13, 'var(--violet)')} شناسنامهٔ رسمی</b>
+      <span class="live-stamp" id="dp-off-stamp"><span class="spin"></span> واکشی از CDN …</span>
+    </div>
+    <div id="dp-off-body"><div class="live-skel"><span class="skel" style="width:60%"></span><span class="skel" style="width:84%"></span></div></div>
+  </div>`;
+}
+
+/** دفتر سفارش زنده: نوارهای عمق تقاضا/عرضه + اسپرد + عدم تعادل */
+export function renderLiveBook(book, inst) {
+  const body = $('#dp-live-body'), stamp = $('#dp-live-stamp');
+  if (!body) return;
+  if (!Array.isArray(book) || !book.length) {
+    body.innerHTML = `<p class="tiny faint" style="margin:0">دفتر سفارش از CDN در دسترس نبود (خارج از ساعات یا نماد بدون سفارش برخط).</p>`;
+    if (stamp) stamp.innerHTML = `${ico('cloud-off', 11)} در دسترس نبود`;
+    return;
+  }
+  const maxQ = Math.max(1, ...book.flatMap(l => [l.bid.q || 0, l.ask.q || 0]));
+  const totBid = book.reduce((a, l) => a + (l.bid.q || 0), 0);
+  const totAsk = book.reduce((a, l) => a + (l.ask.q || 0), 0);
+  const obi = (totBid + totAsk) > 0 ? (totBid - totAsk) / (totBid + totAsk) : NaN;
+  const bestBid = book.find(l => l.bid.p > 0)?.bid.p;
+  const bestAsk = book.find(l => l.ask.p > 0)?.ask.p;
+  const spread = Number.isFinite(bestBid) && Number.isFinite(bestAsk) ? bestAsk - bestBid : NaN;
+  const fmtQ = q => q >= 1e6 ? `${fmtNum(q / 1e6, 2)}م` : q >= 1e3 ? `${fmtNum(q / 1e3, 1)}ه` : fmtNum(q, 0);
+  const level = l => `
+    <div class="lb-row">
+      <span class="lb-side lb-bid" title="تقاضا: ${fmtNum(l.bid.q)} برگه در ${fmtNum(l.bid.p)}">
+        <span class="lb-q mono">${fmtQ(l.bid.q || 0)}</span>
+        <span class="lb-bar" style="width:${Math.round(((l.bid.q || 0) / maxQ) * 100)}%"></span>
+        <span class="lb-p mono">${l.bid.p > 0 ? fmtNum(l.bid.p) : '—'}</span>
+      </span>
+      <span class="lb-i mono faint">${l.i}</span>
+      <span class="lb-side lb-ask" title="عرضه: ${fmtNum(l.ask.q)} برگه در ${fmtNum(l.ask.p)}">
+        <span class="lb-p mono">${l.ask.p > 0 ? fmtNum(l.ask.p) : '—'}</span>
+        <span class="lb-bar" style="width:${Math.round(((l.ask.q || 0) / maxQ) * 100)}%"></span>
+        <span class="lb-q mono">${fmtQ(l.ask.q || 0)}</span>
+      </span>
+    </div>`;
+  body.innerHTML = `
+    <div class="lb-head tiny faint"><span>تقاضا (خرید)</span><span>سطح</span><span>عرضه (فروش)</span></div>
+    ${book.map(level).join('')}
+    <div class="lb-foot">
+      <span class="tiny">اسپرد <b class="mono" dir="ltr">${Number.isFinite(spread) ? fmtNum(spread) : '—'}</b></span>
+      <span class="lb-obi">
+        <span class="tiny ${obi > 0.1 ? 'up' : obi < -0.1 ? 'down' : 'muted'}">OBI ${Number.isFinite(obi) ? fmtNum(obi, 2) : '—'}</span>
+        <span class="gauge-wrap" style="flex:1"><span class="gauge lb-gauge"><i style="${Number.isFinite(obi) ? `inset-inline-start:${Math.round((obi + 1) * 50)}%` : 'display:none'}"></i></span></span>
+      </span>
+      <span class="tiny">صف خرید <b class="mono">${fmtBig(totBid * (bestBid || inst.pl || 0))}</b></span>
+    </div>`;
+  if (stamp) stamp.innerHTML = `${ico('radio-tower', 11)} زنده از CDN رسمی · ${tehranTime()}`;
+  icons();
+}
+
+export function liveBookError(msg) {
+  const body = $('#dp-live-body'); if (!body) return;
+  body.innerHTML = `<p class="tiny faint" style="margin:0">${esc(msg)}</p>`;
+  const stamp = $('#dp-live-stamp');
+  if (stamp) stamp.innerHTML = `${ico('cloud-off', 11)} بدون اتصال`;
+}
+
+/** شناسنامهٔ رسمی CDN: EPS/PE قطعی، شناوری، میانگین حجم و موقعیت در بازهٔ ۵۲ هفته */
+export function renderOfficial(inst, info) {
+  const body = $('#dp-off-body'), stamp = $('#dp-off-stamp');
+  if (!body) return;
+  if (!info || typeof info !== 'object') {
+    body.innerHTML = `<p class="tiny faint" style="margin:0">شناسنامهٔ رسمی در دسترس نبود.</p>`;
+    if (stamp) stamp.innerHTML = `${ico('cloud-off', 11)} در دسترس نبود`;
+    return;
+  }
+  const stat = (k, v, cls = '') => `<div class="stat-mini"><span class="k">${k}</span><span class="v ${cls}">${v}</span></div>`;
+  const eps = Number.isFinite(info.eps) && info.eps > 0 ? info.eps : info.estimatedEPS;
+  const epsLabel = info.eps > 0 ? 'EPS (قطعی)' : 'EPS (برآوردی)';
+  const pe = Number.isFinite(inst.pl) && eps > 0 ? inst.pl / eps : NaN;
+  /* گیج ۵۲ هفته */
+  const lo = Number.isFinite(info.minYear) ? info.minYear : NaN;
+  const hi = Number.isFinite(info.maxYear) ? info.maxYear : NaN;
+  const pos = Number.isFinite(inst.pl) && Number.isFinite(lo) && Number.isFinite(hi) && hi > lo
+    ? Math.min(100, Math.max(0, ((inst.pl - lo) / (hi - lo)) * 100)) : NaN;
+  const weekLo = Number.isFinite(info.minWeek) ? info.minWeek : NaN;
+  const weekHi = Number.isFinite(info.maxWeek) ? info.maxWeek : NaN;
+  body.innerHTML = `
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px">
+      ${stat(epsLabel, Number.isFinite(eps) ? fmtNum(eps) : '—')}
+      ${stat('P/E (محاسبه‌شده)', Number.isFinite(pe) ? fmtNum(pe, 1) : '—')}
+      ${stat('P/E صنعت', Number.isFinite(info.sectorPE) ? fmtNum(info.sectorPE, 1) : '—')}
+      ${stat('شناوری آزاد', Number.isFinite(info.freeFloatPct) && info.freeFloatPct > 0 ? `${fmtNum(info.freeFloatPct, 0)}٪` : '—')}
+      ${stat('میانگین حجم ۳۰ر', Number.isFinite(info.avgVol30) ? fmtBig(info.avgVol30 * (inst.pl || 1)) : '—')}
+      ${stat('گروه صنعتى', esc(info.sectorName || inst.cs || '—'))}
+    </div>
+    ${Number.isFinite(pos) ? `
+    <div style="margin-top:12px">
+      <div class="row-between tiny faint"><span>کف سالانه ${fmtNum(lo)}</span><span>موقعیت در بازهٔ ۵۲ هفته: <b class="mono" style="color:var(--ink)">${fmtNum(pos, 0)}٪</b></span><span>سقف سالانه ${fmtNum(hi)}</span></div>
+      <span class="gauge y52"><i style="inset-inline-start:${pos}%"></i></span>
+      <div class="row-between tiny faint" style="margin-top:5px">
+        <span>${Number.isFinite(weekLo) ? `بازهٔ ماه: ${fmtNum(weekLo)}–${fmtNum(weekHi)}` : ''}</span>
+        ${pos >= 85 ? '<span class="warn">نزدیک سقف سالانه — ریسک اصلاح</span>' : pos <= 15 ? '<span class="up">نزدیک کف سالانه</span>' : ''}
+      </div>
+    </div>` : ''}
+    ${info.boardTitle ? `<p class="tiny faint" style="margin:9px 0 0">${esc(info.boardTitle)}${info.marketTitle ? ` · ${esc(info.marketTitle)}` : ''}${info.underSupervision ? ' · <b class="warn">تحت تعقیب ناظر</b>' : ''}</p>` : ''}`;
+  if (stamp) stamp.innerHTML = `${ico('badge-check', 11)} رسمی · GetInstrumentInfo`;
+  icons();
+}
+
+export function officialError(msg) {
+  const body = $('#dp-off-body'); if (!body) return;
+  body.innerHTML = `<p class="tiny faint" style="margin:0">${esc(msg)}</p>`;
+  const stamp = $('#dp-off-stamp');
+  if (stamp) stamp.innerHTML = `${ico('cloud-off', 11)} بدون اتصال`;
 }
 
 const subline = (key, d) => {
