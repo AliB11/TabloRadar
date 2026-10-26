@@ -215,7 +215,7 @@ export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onC
   if (!r) {
     p.innerHTML = `<div class="glass detail"><div class="center" style="padding:22px 0">
       ${ico('mouse-pointer-click', 22, 'var(--faint)')}
-      <p class="small muted" style="margin-top:12px">یک ردیف انتخاب کنید تا کالبدشکافی امتیاز، جریان پول و نقشه معامله نمایش داده شود.</p></div></div>`;
+      <p class="small muted" style="margin-top:12px">یک ردیف را برای جزئیات انتخاب کنید.</p></div></div>`;
     icons(); return;
   }
   const { inst: s, metrics: m, factors: f, score, plan, reasons, veto } = r;
@@ -235,7 +235,7 @@ export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onC
   const px = v => Number.isFinite(v) ? fmtNum(fmtOpts.unit === 'toman' ? v / 10 : v) : '—';
 
   p.innerHTML = `<div class="glass detail">
-    <div class="head">
+    <div class="head d-head">
       <div class="row" style="gap:10px;align-items:flex-start">
         <div><b style="font-size:19px">${esc(s.l18)}</b>
           <p class="tiny faint" style="margin:3px 0 0">${esc(s.l30)}<br/>${esc(s.cs)} · ${esc(s.market)} ${esc(s.board)}</p></div>
@@ -243,7 +243,7 @@ export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onC
       <span class="grade ${score.grade.cls}">${esc(score.grade.fa)}</span>
     </div>
 
-    <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:8px">
+    <div class="grid d-stats" style="grid-template-columns:repeat(2,1fr);gap:8px">
       ${stat(`آخرین (${unit})`, px(s.pl))}
       ${stat('تغییر آخرین/پایانی', fmtPct(m.chgLast), m.chgLast > 0 ? 'up' : m.chgLast < 0 ? 'down' : '')}
       ${stat(`قیمت پایانی`, px(s.pc))}
@@ -252,10 +252,10 @@ export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onC
       ${stat('دامنه نوسان', `${fmtNum((m.limitPct || 0) * 100, 0)}٪`)}
     </div>
 
-    ${veto?.vetoed ? `<div class="n-fail notice" style="margin:0">
+    ${veto?.vetoed ? `<div class="n-fail notice d-veto" style="margin:0">
         <b>این نماد وتو شد:</b> ${veto.fa.map(esc).join(' • ')}</div>` : ''}
 
-    <div>
+    <div class="d-factors">
       <div class="row-between" style="margin-bottom:9px">
         <b style="font-size:13.5px">کالبدشکافی امتیاز</b>
         ${scoreBadge(score)}
@@ -263,27 +263,26 @@ export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onC
       <div class="col" style="gap:11px">${bars}</div>
     </div>
 
-    ${plan ? `<div>
-      <b style="font-size:13.5px">نقشه معامله (پیشنهاد مدل، نه سیگنال قطعی)</b>
+    ${plan ? `<div class="d-plan">
+      <b style="font-size:13.5px">نقشه معامله</b>
       <div class="plan" style="margin-top:9px">
         <div class="box"><div class="k">محدوده ورود</div><div class="v">${px(plan.entry)}</div></div>
         <div class="box stop"><div class="k">حد ضرر (${fmtPct(plan.stopPct, 1)})</div><div class="v">${px(plan.stop)}</div></div>
         ${plan.targets.map((t, i) => `<div class="box ${i === 0 ? 't1' : ''}"><div class="k">هدف ${i + 1} · ${fmtPct(plan.targetPct[i], 1)} · ≈${plan.sessions[i]} جلسه</div><div class="v">${px(t)}</div></div>`).join('')}
       </div>
-      <p class="tiny faint" style="margin:8px 0 0">مبتنی بر <b>${esc(plan.atrSource)}</b> · نسبت سود به زیان هدف دوم: <b class="mono" dir="ltr">${fmtNum(plan.rr, 2)}</b>
-      ${Number.isFinite(m.capacity) && m.capacity < .3 ? ' · <span class="warn">ظرفیت حرکت امروز کم است؛ ورود به جلسه بعد موکول شود.</span>' : ''}</p>
+      <p class="tiny faint" style="margin:8px 0 0">${esc(plan.atrSource)} · R/R <b class="mono" dir="ltr">${fmtNum(plan.rr, 2)}</b>${Number.isFinite(m.capacity) && m.capacity < .3 ? ' · <span class="warn">ظرفیت امروز کم است</span>' : ''}</p>
     </div>` : ''}
 
     ${livePanelsHtml(s)}
 
-    ${reasons && reasons.length ? `<div><b style="font-size:13.5px">چرا این امتیاز؟</b>
+    ${reasons && reasons.length ? `<div class="d-why"><b style="font-size:13.5px">چرا این امتیاز؟</b>
       <ul class="why" style="margin-top:9px">${reasons.slice(0, 7).map(x => `<li class="${x.tone}">${esc(x.text)}</li>`).join('')}</ul></div>` : ''}
 
     ${(() => { const mine = eventsFor(events, s.l18).filter(e => e.days_ahead >= -1).slice(0, 3); return mine.length
-      ? `<div><b style="font-size:13.5px">اتفاقات نماد</b>
+      ? `<div class="d-events"><b style="font-size:13.5px">اتفاقات نماد</b>
           <div class="col" style="gap:6px;margin-top:8px">${mine.map(eventItemHtml).join('')}</div></div>` : ''; })()}
 
-    <div class="row" style="gap:8px;justify-content:space-between">
+    <div class="row d-actions" style="gap:8px;justify-content:space-between">
       <span class="row" style="gap:7px">
         <a class="btn-mini" target="_blank" rel="noopener" href="https://www.tsetmc.com/ins/${esc(s.insCode)}">${ico('external-link', 12)}TSETMC</a>
         <a class="btn-mini" target="_blank" rel="noopener" href="https://tablokhani.com/">${ico('eye', 12)}تحلیل تابلو</a>
@@ -332,7 +331,7 @@ export function renderLiveBook(book, inst) {
   const body = $('#dp-live-body'), stamp = $('#dp-live-stamp');
   if (!body) return;
   if (!Array.isArray(book) || !book.length) {
-    body.innerHTML = `<p class="tiny faint" style="margin:0">دفتر سفارش از CDN در دسترس نبود (خارج از ساعات یا نماد بدون سفارش برخط).</p>`;
+    body.innerHTML = `<p class="tiny faint" style="margin:0">دفتر سفارش در دسترس نیست.</p>`;
     if (stamp) stamp.innerHTML = `${ico('cloud-off', 11)} در دسترس نبود`;
     return;
   }
@@ -385,7 +384,7 @@ export function renderOfficial(inst, info) {
   const body = $('#dp-off-body'), stamp = $('#dp-off-stamp');
   if (!body) return;
   if (!info || typeof info !== 'object') {
-    body.innerHTML = `<p class="tiny faint" style="margin:0">شناسنامهٔ رسمی در دسترس نبود.</p>`;
+    body.innerHTML = `<p class="tiny faint" style="margin:0">شناسنامه در دسترس نیست.</p>`;
     if (stamp) stamp.innerHTML = `${ico('cloud-off', 11)} در دسترس نبود`;
     return;
   }
@@ -457,7 +456,7 @@ export function renderNone(kind, reason) {
   const p = $('#detail-panel'); if (!p) return;
   p.innerHTML = kind === 'load'
     ? `<div class="glass detail center" style="padding:34px"><span class="spin" style="width:20px;height:20px"></span>
-       <p class="small muted" style="margin-top:14px">در حال دریافت داده از تابلوی بازار …</p></div>`
+       <p class="small muted" style="margin-top:14px">دریافت داده …</p></div>`
     : `<div class="glass detail center" style="padding:28px">
         ${ico('satellite', 26, 'var(--red)')}
         <b style="display:block;margin-top:10px">داده‌ای دریافت نشد</b>
@@ -500,7 +499,7 @@ export function renderRadar(metricsAll, rows) {
     q.innerHTML = items.length ? items.map(x => `
       <div class="mini-row"><span class="l"><b>${esc(x.inst.l18)}</b><span class="tiny faint">${esc(x.inst.cs)}</span></span>
         <span class="r up">${fmtBig(x.m.buyQueueValue)} · ${fmtNum(x.m.buyQueue)} برگه</span></div>`).join('')
-      : `<p class="small faint">امروز صف خرید معناداری در داده دریافتی ثبت نشده است.</p>`;
+      : `<p class="small faint">صف خرید معناداری ثبت نشده است.</p>`;
   }
 
   const k = $('#radar-k2k');
@@ -511,7 +510,7 @@ export function renderRadar(metricsAll, rows) {
       <div class="mini-row"><span class="l"><b>${esc(r.inst.l18)}</b>
         <span class="tiny ${r.metrics.k2k.bias > 0 ? 'up' : 'down'}">${esc(r.metrics.k2k.fa)}</span></span>
         <span class="r">${moneyCell(r.metrics.netRealMoney)}</span></div>`).join('')
-      : `<p class="small faint">الگوی کد‌به‌کد یا جمع‌آوری/خروج محسوس در این اسکن شناسایی نشد.</p>`;
+      : `<p class="small faint">الگوی کد‌به‌کد محسوسی شناسایی نشد.</p>`;
   }
 
   const w = $('#radar-watch');
@@ -532,7 +531,7 @@ export function renderRadar(metricsAll, rows) {
 export function renderVetoList(vetoed) {
   const box = $('#veto-list'); if (!box) return;
   const count = $('#veto-n'); if (count) count.textContent = fmtNum(vetoed.length);
-  if (!vetoed.length) { box.innerHTML = `<p class="small faint">هیچ نمادی وتو نشد — دامنه اسکن و آستانه‌ها را بررسی کنید.</p>`; return; }
+  if (!vetoed.length) { box.innerHTML = `<p class="small faint">هیچ نمادی وتو نشد.</p>`; return; }
   box.innerHTML = vetoed.slice(0, 40).map(r => `
     <div class="mini-row"><span class="l"><b>${esc(r.inst.l18)}</b>
       <span class="tiny faint">${esc(r.inst.cs)}</span></span>
@@ -543,15 +542,10 @@ export function renderVetoList(vetoed) {
 export function renderVetoCards(counts) {
   const box = $('#veto-cards'); if (!box) return;
   box.innerHTML = VETO_META.map(v => `
-    <div class="glass veto-card p-6" style="border-radius:18px">
-      <div class="row" style="gap:11px">
-        <span class="ico" style="background:rgba(255,77,105,.09);border:1px solid rgba(255,77,105,.3)">
-          ${ico(v.icon, 19, 'var(--red)')}</span>
-        <b style="font-size:14.5px">${v.fa}</b>
-        <span class="mono" style="margin-inline-start:auto;color:var(--red);font-size:20px;direction:ltr">${fmtNum(counts[v.code] || 0)}</span>
-      </div>
-      <p class="small muted" style="margin-top:12px">${v.detail}</p>
-      <span class="tiny faint mono" dir="ltr">${fmtNum(counts[v.code] || 0)} نماد در اجرای اخیر</span>
+    <div class="glass veto-card" title="${esc(v.fa)}">
+      <span class="ico">${ico(v.icon, 16)}</span>
+      <b>${v.fa}</b>
+      <span class="vn mono">${fmtNum(counts[v.code] || 0)}</span>
     </div>`).join('');
   icons();
 }
@@ -581,29 +575,18 @@ export function renderDonut(weights) {
     <b>${fmtNum((weights[f.key] || 0) / total * 100, 1)}٪</b></span>`).join('');
 }
 
+/** نوار فشردهٔ پنج عامل — فقط نام و وزن، بدون توضیحات تکراری */
 export function renderFactorCards(f, weights) {
   const box = $('#factor-cards'); if (!box) return;
-  const total = FACTOR_META.reduce((a, x) => a + (weights[x.key] || 0), 0) || 1;
-  box.innerHTML = FACTOR_META.map(fc => `
-    <div class="glass pcard p-6" style="border-radius:18px">
-      <div class="row-between">
-        <span class="row" style="gap:11px">
-          <span class="ico" style="background:${hexA(fc.color, .1)};border:1px solid ${hexA(fc.color, .3)}">${ico(fcIcon(fc.key), 18, fc.color)}</span>
-          <b style="font-size:15px">${fc.fa}</b>
-        </span>
-        <span class="mono" style="color:${fc.color};font-size:12px" dir="ltr">${fmtNum((weights[fc.key] || 0) / total * 100, 0)}٪</span>
-      </div>
-      <p class="small muted" style="margin-top:12px">${fc.desc}</p>
-      <p class="tiny faint mono" style="margin-top:8px" dir="ltr">${subline(fc.key, f?.detail?.[fc.key] || {})}</p>
-    </div>`).join('');
-  icons();
+  box.innerHTML = FACTOR_META.map(fc => {
+    const w = Number.isFinite(weights?.[fc.key]) ? weights[fc.key] : 0;
+    return `<div class="factor-chip" title="${esc(fc.fa)}">
+      <span class="ft"><i class="fd" style="background:${fc.color}"></i>${esc(fc.fa)}</span>
+      <span class="fw" style="color:${fc.color}">${fmtNum(w, 0)}<span class="tiny faint">٪</span></span>
+      <span class="ftrack"><i style="width:${Math.min(100, w * 2)}%;background:${fc.color}"></i></span>
+    </div>`;
+  }).join('');
 }
-const fcIcon = k => ({ tablo: 'eye', short: 'zap', mid: 'trending-up', long: 'layers', risk: 'shield-check' }[k] || 'gauge');
-const hexA = (hex, a) => {
-  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
-  const n0 = parseInt(hex.slice(1), 16);
-  return `rgba(${(n0 >> 16) & 255},${(n0 >> 8) & 255},${n0 & 255},${a})`;
-};
 
 export function renderWeightSliders(weights, rules, onChange) {
   const box = $('#w-sliders'); if (!box) return;
@@ -631,41 +614,7 @@ export function renderWeightSliders(weights, rules, onChange) {
   wire('#r-hist', () => onChange('requireHistory', $('#r-hist').checked));
 }
 
-/* ═════════════════۶. پایپ‌لاین، ترمینال، JSON ═════════════════ */
-
-export const PIPELINE = [
-  { fa: 'واکشی داده', file: 'assets/js/data.js · server.py', icon: 'satellite-dish', color: 'var(--cyan)',
-    desc: 'زنجیره منبع: پروکسی محلی ← BrsApi ← TSETMC ← اسنپ‌شات آفلاین، با تایم‌اوت و مسیر جایگزین.' },
-  { fa: 'نرمال‌سازی', file: 'assets/js/tse.js', icon: 'git-merge', color: 'var(--green)',
-    desc: 'تبدیل نام‌های متفاوت فیلدها (pc/pl/qd1/Buy_I_Volume/tmax…) به یک مدل یکنواخت + قواعد بازار.' },
-  { fa: 'خُردساختار تابلو', file: 'assets/js/engine.js · instrumentMetrics', icon: 'eye', color: 'var(--violet)',
-    desc: 'سرانه، قدرت خریدار، پول حقیقی خالص، کد‌به‌کد، صف‌ها، OBI، حجم مشکوک، فاصله تا سقف مجاز.' },
-  { fa: 'تکنیکال چندبازه', file: 'assets/js/indicators.js', icon: 'line-chart', color: 'var(--amber)',
-    desc: 'RSI/EMA/SMA(20-50-200)/MACD/Bollinger/ATR روی تاریخچه واقعی؛ در نبود داده، factor=نمشده.' },
-  { fa: 'امتیاز + وتو', file: 'assets/js/engine.js · rankInstruments', icon: 'gauge', color: 'var(--green)',
-    desc: 'پنج عامل وزنی، اطمینان، درجه سیگنال، نقشه معامله و استخراج Top-N.' },
-  { fa: 'رندر و خروجی', file: 'assets/js/ui.js · app.js', icon: 'file-json', color: 'var(--cyan)',
-    desc: 'دیده‌بان، هیت‌مپ، رادار، CSV/JSON، اشتراک تلگرام و CLI مرورگر.' },
-  { fa: 'میز پژوهش', file: 'tsepy/backtest.py · assets/js/scorecard.js', icon: 'graduation-cap', color: 'var(--violet)',
-    desc: 'ثبت هر اسکن در out/runs/، walk-forward بدون نگاه‌به‌آینده، کارنامۀ مدل، رویدادها، هشدار شرطی و مقایسۀ دو نماد.' },
-];
-
-export function renderPipeline() {
-  const box = $('#pflow'); if (!box || box.dataset.done) return;
-  box.dataset.done = '1';
-  box.insertAdjacentHTML('beforeend', PIPELINE.map((p, i) => `
-    <div class="pnode reveal" style="transition-delay:${(i * 0.07).toFixed(2)}s">
-      <div class="glass pcard p-5" style="border-radius:18px">
-        <span class="pnum mono" dir="ltr">${String(i + 1).padStart(2, '0')}</span>
-        <span class="ico" style="margin-bottom:14px;background:${hexA(p.color === 'var(--cyan)' ? '#43c2ff' : p.color === 'var(--green)' ? '#14d484' : p.color === 'var(--violet)' ? '#9b8cff' : '#ffc14d', .1)};border:1px solid ${hexA(p.color === 'var(--cyan)' ? '#43c2ff' : p.color === 'var(--green)' ? '#14d484' : p.color === 'var(--violet)' ? '#9b8cff' : '#ffc14d', .3)}">
-          ${ico(p.icon, 19, p.color)}</span>
-        <b style="font-size:14.5px">${p.fa}</b>
-        <p class="mono tiny faint" dir="ltr" style="margin:5px 0 0">${p.file}</p>
-        <p class="small muted" style="margin-top:10px">${p.desc}</p>
-      </div>
-    </div>`).join(''));
-  icons();
-}
+/* ═════════════════۶. ترمینال و JSON ═════════════════ */
 
 export function termLog(lv, msg) {
   const box = $('#term-body'); if (!box) return;

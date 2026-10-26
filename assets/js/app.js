@@ -59,7 +59,7 @@ function renderEventsPanel() {
   }
   const up = upcoming(S.events, 6);
   list.innerHTML = up.map(eventItemHtml).join('')
-    + `<p class="tiny faint" style="margin:4px 0 0">${U.esc('منبع: data/events.json — برچسب‌دار/شبیه‌سازی؛ در نسخۀ متصل خوانندۀ کدال جایگزین می‌شود.')}</p>`;
+    + `<p class="tiny faint" style="margin:4px 0 0">${U.esc('منبع: data/events.json')}</p>`;
   if (note) note.textContent = `${fmtNum(up.length)} رویداد پیش‌رو`;
 }
 
@@ -199,29 +199,13 @@ async function scan({ manual = false, withHistory = true } = {}) {
     U.termLog(res.live ? 'OK' : 'WARN',
       `${res.live ? 'داده زنده دریافت شد' : (S.meta.kind === 'simulated' ? 'دادهٔ شبیه‌سازی‌شده (غیرواقعی)' : 'حالت آفلاین')}: ${res.source} · ${fmtNum(S.insts.length)} نماد`);
     if (S.meta.kind === 'simulated') {
-      const sim = (S.meta.simulatedFields?.simulated || []).slice(0, 6).join('، ');
-      U.notice('fail', `<b class="down">⚠ این داده‌ها واقعی نیستند — شبیه‌سازی‌شده‌اند</b>
-        هیچ منبع زنده‌ای پاسخ نداد، پس داشبورد روی «اسنپ‌شات نمونه» اجرا می‌شود. فقط
-        <b>قیمت پایانی/دیروز، ارزش و تعداد معاملات</b> لنگر خبری دارند؛ ${U.esc(sim)} … ساخته شده‌اند.
-        <div class="tiny" style="margin-top:6px">برای دادهٔ واقعی یکی از این دو کار را انجام دهید:
-          <span class="mono" dir="ltr">python3 tools/fetch_live_snapshot.py</span> (رونوشت واقعی از TSETMC/بورس‌تریدر،
-          حتی برای حالت بی‌شبکه) یا <span class="mono" dir="ltr">python3 server.py</span> (داده زنده در لحظه).
-        </div>`);
+      U.notice('fail', `<b class="down">⚠ داده شبیه‌سازی‌شده است</b> — منبع زندهای پاسخ نداد. <span class="mono" dir="ltr">python3 server.py</span>`);
     } else if (!S.meta.live) {
-      U.notice('warn', `<b class="warn">داده زنده در دسترس نبود</b> — داشبورد روی اسنپ‌شات محلی اجرا می‌شود
-        (${U.esc(S.meta.asOf || 'بدون تاریخ')}). برای داده لحظه‌ای <span class="mono" dir="ltr">python3 server.py</span>
-        را اجرا کنید یا کلید BrsApi را در بخش «داده و شفافیت» وارد کنید.
-        ${S.meta.snapshot ? `<div class="tiny faint" style="margin-top:6px">${U.esc(S.meta.snapshot.disclaimer || '')}</div>` : ''}`);
+      U.notice('warn', `<b class="warn">داده زنده در دسترس نبود</b> — اسنپ‌شات محلی (${U.esc(S.meta.asOf || '—')}). <span class="mono" dir="ltr">python3 server.py</span>`);
     } else if (S.meta.kind === 'live-cdn') {
-      U.notice('ok', `<b class="up">دادهٔ ۱۰۰٪ واقعی از CDN رسمی TSETMC</b> — ${U.esc(S.meta.source)}
-        · آخرین جلسه: ${U.esc(S.meta.asOf || '—')}. شناسه‌ها واقعی‌اند و واکشی مستقیم مرورگر است (CORS مجاز، بدون واسطه).
-        پوشش جزئی: پرگردش‌ترین نمادها؛ فیلد حقیقی/حقوقی تنها از مسیر سرور/سرویس قدیمی می‌آید و اینجا غایب است
-        (اعتماد کمتر، عدد ساختگی هیچ).
-        <div class="tiny" style="margin-top:6px">برای پوشش کامل بازار <span class="mono" dir="ltr">python3 server.py</span> را اجرا کنید.</div>`);
+      U.notice('ok', `<b class="up">داده واقعی CDN رسمی TSETMC</b> — ${U.esc(S.meta.source)} · ${U.esc(S.meta.asOf || '—')} · پوشش پرگردش‌ترین نمادها.`);
     } else if (S.meta.kind === 'live-partial') {
-      U.notice('warn', `<b class="warn">داده واقعی اما جزئی</b> — منبع: ${U.esc(S.meta.source)}.
-        پوشش کامل بازار با TSETMC به دست می‌آید؛ برای دادهٔ کامل/لحظه‌ای
-        <span class="mono" dir="ltr">python3 server.py</span> را اجرا کنید.`);
+      U.notice('warn', `<b class="warn">داده واقعی اما جزئی</b> — ${U.esc(S.meta.source)}. <span class="mono" dir="ltr">python3 server.py</span>`);
     }
     S.tAnalyze = performance.now();
     recompute();
@@ -232,9 +216,7 @@ async function scan({ manual = false, withHistory = true } = {}) {
     U.termLog('ERROR', `شکست در واکشی: ${String(e.message || e)}`);
     const hasLocal = S.insts.length > 0;
     U.notice(hasLocal ? 'warn' : 'fail',
-      `<b class="${hasLocal ? 'warn' : 'down'}">${hasLocal ? 'داده زنده نرسید — نمایش روی اسنپ‌شات محلی ادامه دارد' : 'هیچ منبعی پاسخ نداد.'}</b>
-       ${U.esc(String(e.message || e).slice(0, 200))}
-       <div class="tiny" style="margin-top:6px">مسیرهای آزموده‌شده: ${(e.log || []).map(U.esc).join(' · ') || 'پروکسی محلی، BrsApi، TSETMC، اسنپ‌شات'}</div>`);
+      `<b class="${hasLocal ? 'warn' : 'down'}">${hasLocal ? 'داده زنده نرسید — ادامه روی اسنپ‌شات محلی' : 'هیچ منبعی پاسخ نداد.'}</b> ${U.esc(String(e.message || e).slice(0, 120))}`);
     if (!hasLocal) { U.renderNone('fail', String(e.message || e).slice(0, 160)); U.renderTable([]); }
     scheduleRetry(30);
   } finally {
@@ -276,6 +258,7 @@ function renderAll() {
   U.renderVetoList(S.vetoed);
   U.renderVetoCards(S.vetoCounts);
   U.renderDonut(S.weights);
+  U.renderFactorCards(S.rows[0]?.factors, S.weights);
   U.renderWeightSliders(S.weights, S.rules, onWeightChange);
   const top = S.rows.find(r => r.inst.l18 === S.selected) || S.rows[0];
   U.renderDetail(top, detailOpts());
@@ -288,8 +271,8 @@ function renderAll() {
   fireCheck();   // سنجه‌های هشدار شرطی روی تازه‌ترین ردیف‌ها
 }
 
-const noticeOkHtml = () => `<b class="up">اسکن کامل شد.</b> ${fmtNum(S.rows.length)} نماد رتبه‌بندی و ${fmtNum(S.vetoed.length)} نماد وتو شد.
-  <button class="btn-mini" id="nt-refresh" style="margin-inline-start:8px">${U.esc('')}<i data-lucide="rotate-cw" style="width:11px;height:11px"></i>واکشی تازه</button>
+const noticeOkHtml = () => `<b class="up">اسکن کامل شد.</b> ${fmtNum(S.rows.length)} رتبه‌بندی · ${fmtNum(S.vetoed.length)} وتو
+  <button class="btn-mini" id="nt-refresh" style="margin-inline-start:8px"><i data-lucide="rotate-cw" style="width:11px;height:11px"></i>واکشی تازه</button>
   <span id="retry-in" class="tiny faint"></span>`;
 
 const visibleRowsForTicker = () => [...S.insts]
@@ -539,7 +522,7 @@ const CLI = {
     if (a.length >= 5) { ['tablo', 'short', 'mid', 'long', 'risk'].forEach((k, i) => S.weights[k] = Number(a[i]) || 0); recompute(); renderAll(); U.termLog('CMD', `دوباره امتیازدهی شد: ${JSON.stringify(S.weights)}`); }
     return `وزن‌ها: ${Object.entries(S.weights).map(([k, v]) => `${k}=${v}`).join(' ')}`;
   },
-  rules: a => { if (a[0]) { S.rules.minValue = Number(a[0]) * 1e9; recompute(); renderAll(); } return `حداقل ارزش معاملات: ${fmtNum(S.rules.minValue / 1e9, 0)} میلیارد ریال · وتوشده: ${S.vetoed.length}`; },
+  rules: a => { if (a[0]) { S.rules.minValue = Number(a[0]) * 1e9; recompute(); renderAll(); } return `حداقل ارزش معاملات: ${fmtNum(S.rules.minValue / 1e9, 0)} میلیارد ریال · وتو‌شده: ${S.vetoed.length}`; },
   export: a => {
     if (a[0] === 'csv') { download('tabloradar.csv', csvOf(), 'text/csv;charset=utf-8'); return 'CSV دانلود شد'; }
     if (a[0] === 'json') { download('signals.json', JSON.stringify(S.payload, null, 2)); return 'JSON دانلود شد'; }
@@ -583,14 +566,14 @@ function runCommand(line) {
 /* ─────────────────────────── ۶. تور ۹۰ ثانیه‌ای ─────────────────────────── */
 
 const TOUR = [
-  { sel: '#pulse-grid', t: 'نبض بازار', d: 'دمای بازار، عرض بازار، ارزش معاملات و پول حقیقی خالص — از همان اسنپ‌شات؛ اگر این چهار عدد هم‌جهت باشند، سیگنال‌های فردا اعتبار بیشتری دارند.' },
-  { sel: '#sig-table', t: 'دیده‌بان رتبه‌بندی‌شده', d: 'فقط نمادهایی که از فیلترهای وتو رد شده‌اند. «ظرفیت تا سقف» می‌گوید با دامنه ۳٪ امروز چقدر جای حرکت هست.' },
-  { sel: '#detail-panel', t: 'کالبدشکافی و نقشه', d: 'پنج عامل، دلیل‌های فارسی، محدوده ورود، حد ضرر و پله‌های هدف — همراه با تعداد جلسات لازم.' },
-  { sel: '#view-heat', t: 'هیت‌مپ صنایع', d: 'بازار ایران صنعت‌محور است: کلیک روی یک کاشی، کل جدول را روی همان صنعت فیلتر می‌کند.' },
-  { sel: '#w-sliders', t: 'سناریوی وزن‌ها', d: 'مدل جعبه سیاه نیست. وزن خودتان را بدهید و ببینید چه می‌شود.' },
-  { sel: '#sc-card', t: 'کارنامۀ مدل', d: 'خودِ ادعا هم سنجیده می‌شود: walk-forward روی تاریخچه، hit-rate سه‌جلسه‌ای و مازاد بر بازار — پیش از آن‌که به امتیاز اعتماد کنید، کارنامه را ببینید.' },
-  { sel: '#view-radar', t: 'رادار صف و کد‌به‌کد', d: 'سنگین‌ترین صف‌های خرید، الگوهای کد‌به‌کد و نمادهای منتظر تایید فردا.' },
-  { sel: '#output', t: 'ترمینال و خروجی', d: 'دستور بزنید: filter power>1.3 یا explain فولاد؛ خروجی JSON شامل منبع، زمان و فیلدهای غایب است — شفافیت اینجا زندگی می‌کند.' },
+  { sel: '#pulse-grid', t: 'نبض بازار', d: 'دما، عرض بازار، ارزش معاملات و پول حقیقی خالص از همان اسنپ‌شات.' },
+  { sel: '#sig-table', t: 'دیدهبان رتبه‌بندیشده', d: 'فقط نمادهایی که از فیلترهای وتو گذشتهاند؛ «ظرفیت تا سقف» جای حرکت امروز را نشان میدهد.' },
+  { sel: '#detail-panel', t: 'کالبدشکافی و نقشه', d: 'پنج عامل، دلایل، محدوده ورود، حد ضرر و اهداف.' },
+  { sel: '#view-heat', t: 'هیت‌مپ صنایع', d: 'کلیک روی هر کاشی، جدول را روی همان صنعت فیلتر میکند.' },
+  { sel: '#w-sliders', t: 'سناریوی وزنها', d: 'وزنها را تغییر دهید؛ جدول همان لحظه بازمحاسبه می‌شود.' },
+  { sel: '#sc-card', t: 'کارنامه مدل', d: 'نتیجه walk-forward و نرخ اصابت سیگنالها، پیش از اعتماد به امتیاز.' },
+  { sel: '#view-radar', t: 'رادار صف و کد‌به‌کد', d: 'سنگین‌ترین صفها، الگوهای کد‌به‌کد و نمادهای جلسه بعد.' },
+  { sel: '#output', t: 'ترمینال و خروجی', d: 'filter power>1.3 · explain فولاد · خروجی JSON با فیلدهای غایب.' },
 ];
 
 let tourIdx = -1;
