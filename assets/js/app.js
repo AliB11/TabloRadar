@@ -7,8 +7,8 @@ import {
   rankInstruments, marketPulse, sectorAggregates, DEFAULT_WEIGHTS, DEFAULT_RULES,
   instrumentMetrics, FACTOR_META,
 } from './engine.js';
-import { loadMarket, loadOfflineSnapshot, CFG, loadConfigFromStorage, saveConfig } from './data.js';
-import { cdnBook, cdnInfo, applyCdnInfo } from './cdn.js';
+import { loadMarket, deepenMarket, loadOfflineSnapshot, CFG, loadConfigFromStorage, saveConfig, normalizeAll } from './data.js';
+import { cdnBook, cdnInfo, applyCdnInfo, readSeedCache } from './cdn.js';
 import { loadModelReport, renderScorecard } from './scorecard.js';
 import { parseAlert, checkAlerts, alertLabel, alertLine, fireText, loadAlerts, saveAlerts } from './alerts.js';
 import { loadEvents, upcoming, eventItemHtml } from './events.js';
@@ -172,6 +172,25 @@ async function scan({ manual = false, withHistory = true } = {}) {
       primedLocal = true;
       U.termLog('INFO', `رندر اولیه از اسنپ‌شات آفلاین (${S.rows.length} سیگنال)`);
     }
+    /* پینت فوری از کش نشست (ردیف‌های خام اسکن بذری همین نشست) — تازه‌سازی واقعی در ادامه می‌آید */
+    if (!primedLocal) {
+      const cached = readSeedCache();
+      if (cached?.rows?.length) {
+        S.insts = normalizeAll(cached.rows);
+        S.meta = { live: false, cached: true, source: `کش نشست — CDN رسمی TSETMC (${S.insts.length} نماد)`,
+          at: new Date(), route: 'sessionStorage', kind: 'live-cdn', asOf: cached.asOf || '',
+          historyCount: 0 };
+        S.meta.historyOk = false;
+        S.fetchElapsed = (performance.now() - S.t0) / 1000;
+        S.tAnalyze = performance.now();
+        recompute();
+        S.lastElapsed = (performance.now() - S.tAnalyze) / 1000;
+        renderAll();
+        primedLocal = true;
+        U.notice('load', `نمایش فوری از کش نشست (${fmtNum(S.insts.length)} نماد واقعی) — تازه‌سازی در پس‌زمینه <span class="spin"></span>`);
+        U.termLog('INFO', `پینت فوری از کش نشست (${S.insts.length} ردیف)`);
+      }
+    }
   }
   U.notice('load', primedLocal
     ? `${U.esc('اتصال به منبع داده …')} نمایش موقت از اسنپ‌شات محلی <span class="spin"></span>`
@@ -180,11 +199,21 @@ async function scan({ manual = false, withHistory = true } = {}) {
 
   try {
     const histN = withHistory ? Number(U.$('#s-histn')?.value || 40) : 0;
+    /* مسیر سریع: فقط اسنپ‌شات — جدول زنده در چند ثانیهٔ اول؛ تاریخچه/غنی‌سازی بعداً در پس‌زمینه */
     const res = await loadMarket({
-      historyFor: histN,
-      enrichFor: 40,   // شناسنامهٔ رسمی + دفتر سفارش زندهٔ CDN برای پرگردش‌ترین‌ها
-      onProgress: (done, total, sym) => { if (done % 10 === 0 || done === total) U.termLog('INFO', `تاریخچه ${done}/${total} — ${sym}`); },
-      onEnrich: (done, total) => { if (done === total) U.termLog('OK', `غنی‌سازی CDN: شناسنامه و دفتر سفارش ${done}/${total} نماد پرگردش`); },
+      historyFor: 0,
+      enrichFor: 0,
+      onSeedPreview: (partial, done, total) => {
+        if (primedLocal || !partial?.length || partial.length < 25) return;
+        S.insts = normalizeAll(partial);
+        S.meta = { live: true, source: `CDN رسمی TSETMC (اسکن بذری ${done}/${total} …)`,
+          at: new Date(), route: 'cdn.tsetmc.com مستقیم', kind: 'live-cdn', asOf: '',
+          historyCount: 0 };
+        S.meta.historyOk = false;
+        recompute();
+        renderAll();
+        U.notice('load', `اسکن زندهٔ CDN — ${fmtNum(done)}/${fmtNum(total)} نماد دریافت شد؛ جدول در حال تکمیل است <span class="spin"></span>`);
+      },
     });
     S.insts = res.instruments;
     S.meta = {
@@ -212,6 +241,25 @@ async function scan({ manual = false, withHistory = true } = {}) {
     S.lastElapsed = (performance.now() - S.tAnalyze) / 1000;
     renderAll();
     scheduleRetry(CFG.refreshSec);
+
+    /* غنی‌سازی پس‌زمینه: تاریخچهٔ تکنیکال + شناسنامه/دفتر سفارش CDN — بعد از اولین رندر، غیربلاک‌کننده */
+    if (histN > 0 || S.meta.live) {
+      const bgInsts = S.insts;
+      deepenMarket(bgInsts, {
+        historyFor: histN,
+        enrichFor: 40,
+        onProgress: (done, total, sym) => { if (done % 10 === 0 || done === total) U.termLog('INFO', `تاریخچه ${done}/${total} — ${sym}`); },
+        onEnrich: (done, total) => { if (done === total) U.termLog('OK', `غنی‌سازی CDN: شناسنامه و دفتر سفارش ${done}/${total} نماد پرگردش`); },
+      }).then(() => {
+        if (S.insts !== bgInsts) return;   // اسکن تازه‌تری جایگزین شده
+        S.meta.historyCount = bgInsts.filter(i => i.history?.length >= 30).length;
+        S.meta.historyOk = S.meta.historyCount > 0;
+        S.lastElapsed = (performance.now() - S.tAnalyze) / 1000;
+        recompute();
+        renderAll();
+        U.termLog('OK', 'غنی‌سازی پس‌زمینه کامل شد — تکنیکال و شناسنامه به‌روز');
+      }).catch(() => { /* تداخل با اسکن بعدی — بی‌اهمیت */ });
+    }
   } catch (e) {
     U.termLog('ERROR', `شکست در واکشی: ${String(e.message || e)}`);
     const hasLocal = S.insts.length > 0;
@@ -420,7 +468,7 @@ function renderJSON() {
   if (S.insts.some(i => !Number.isFinite(i.sectorPE))) missing.push('sectorPE');
   if (S.insts.some(i => !(i.book || []).length)) missing.push('orderBook');
   const payload = {
-    tool: 'TabloRadar v4.1',
+    tool: 'TabloRadar v4.2',
     generated_at: new Date().toISOString(),
     tehran_calendar: tehranDate(),
     source: S.meta.source || '—',

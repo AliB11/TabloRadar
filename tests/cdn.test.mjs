@@ -13,6 +13,7 @@ import { join, dirname } from 'node:path';
 import {
   mapInstrumentInfo, mapDailyList, mapBestLimits, dailyRowToRaw,
   applyCdnInfo, applyCdnBook, mergeSeedWithCodemap, sessionIsToday,
+  readSeedCache, writeSeedCache,
 } from '../assets/js/cdn.js';
 import { normalizeInstrument } from '../assets/js/tse.js';
 
@@ -142,6 +143,34 @@ test('CDN: تشخیص جلسهٔ امروز تهران از تاریخ YYYYMMDD'
   assert.equal(sessionIsToday('20261025', now), true);
   assert.equal(sessionIsToday('20261024', now), false);
   assert.equal(sessionIsToday('', now), false);
+});
+
+test('CDN: کش نشست — ذخیره/خواندن ردیف‌های خام با TTL و گارد نبود sessionStorage', () => {
+  const store = new Map();
+  globalThis.sessionStorage = {
+    getItem: k => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, v),
+  };
+  try {
+    writeSeedCache([{ insCode: '46348559193224090', l18: 'فولاد', pl: 4110 }], '1405/08/03');
+    const c = readSeedCache();
+    assert.ok(c && c.rows.length === 1);
+    assert.equal(c.rows[0].l18, 'فولاد');
+    assert.equal(c.asOf, '1405/08/03');
+    assert.ok(c.t <= Date.now() && Date.now() - c.t < 5_000);
+    // منقضی: TTL گذشته ⇒ null
+    const raw = JSON.parse(store.get('tr.seedscan.v1'));
+    raw.t = Date.now() - 11 * 60_000;
+    store.set('tr.seedscan.v1', JSON.stringify(raw));
+    assert.equal(readSeedCache(), null);
+    // دادهٔ خراب ⇒ null (نه استثنا)
+    store.set('tr.seedscan.v1', '{broken');
+    assert.equal(readSeedCache(), null);
+  } finally {
+    delete globalThis.sessionStorage;
+  }
+  // نبود sessionStorage (Node/محیط آزمون) ⇒ null، نه کرش
+  assert.equal(readSeedCache(), null);
 });
 
 test('CDN: فایل بذری همراه ریپو واقعی و پر است (۴۲۰ نماد با شناسهٔ واقعی)', () => {

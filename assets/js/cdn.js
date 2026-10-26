@@ -233,27 +233,32 @@ async function mapLimit(arr, n, fn) {
 /**
  * اسکن بذری: برای هر نمادِ فایل بذری یک درخواست DailyList(days=1) و ساخت ردیف خام.
  * خروجی برای normalizeAll آماده است؛ ۱۰۰٪ واقعی از CDN، با پوشش جزئی (پوشش صادقانه).
+ * گلوگاه عملکرد، سقف ۶ اتصال همزمان مرورگر به یک هاست HTTP/1.1 است — نه پهنای باند؛
+ * بنابراین مصرف‌کننده باید روی onPreview رندر تدریجی کند تا جدول زود دیده شود.
  * @returns {Promise<{rows:Array, asOf:string, ok:number, failed:number, lastSession:string}>}
  */
 export async function cdnSeedScan({
   seedSymbols, codemap = {},
-  concurrency = 10, onProgress, maxSymbols = 500,
+  concurrency = 12, onProgress, onPreview, previewEvery = 30, maxSymbols = 500,
 } = {}) {
   const universe = mergeSeedWithCodemap(seedSymbols, codemap).slice(0, maxSymbols);
   let ok = 0, failed = 0, done = 0;
   let lastSession = '';
+  const acc = [];
   const rows = await mapLimit(universe, concurrency, async sym => {
     let raw = null;
     try {
-      const bars = await cdnDailyBars(sym.i, 1, { ttl: 45_000 });
+      const bars = await cdnDailyBars(sym.i, 1, { ttl: 90_000 });
       raw = dailyRowToRaw(sym, bars[bars.length - 1]);
       if (raw) {
         ok++;
+        acc.push(raw);
         // مقایسهٔ لغوی امن روی رشتهٔ 'YYYYMMDD' (عرض ثابت)
         if (raw.lastSession && raw.lastSession > (lastSession || '')) lastSession = raw.lastSession;
       } else failed++;
     } catch { failed++; }
     done++;
+    if (onPreview && raw && done % previewEvery === 0) onPreview(acc.slice(), done, universe.length);
     if (done % 25 === 0 || done === universe.length) onProgress?.(done, universe.length, ok, failed);
     return raw;
   });
@@ -262,6 +267,28 @@ export async function cdnSeedScan({
     asOf: lastSession ? `${lastSession.slice(0, 4)}/${lastSession.slice(4, 6)}/${lastSession.slice(6)}` : '',
     ok, failed, lastSession,
   };
+}
+
+/* ───────────────── ۵٫ب کش نشست اسکن بذری (بارگذاری مجدد آنی) ───────────────── */
+
+const SEED_CACHE_KEY = 'tr.seedscan.v1';
+const SEED_CACHE_TTL = 10 * 60_000;   // کش نشست فقط پینت فوری می‌دهد؛ تازگی با اسکن پس‌زمینه تضمین می‌شود
+
+/** ردیف‌های خام اسکن بذری همین نشست مرورگر — برای پینت فوری در بارگذاری مجدد */
+export function readSeedCache(maxAgeMs = SEED_CACHE_TTL) {
+  try {
+    const o = JSON.parse(sessionStorage.getItem(SEED_CACHE_KEY) || 'null');
+    if (!o || !Array.isArray(o.rows) || !o.rows.length) return null;
+    if (Date.now() - o.t > maxAgeMs) return null;
+    return o;
+  } catch { return null; }
+}
+
+export function writeSeedCache(rows, asOf) {
+  try {
+    sessionStorage.setItem(SEED_CACHE_KEY,
+      JSON.stringify({ t: Date.now(), asOf: asOf || '', rows: rows.slice(0, 600) }));
+  } catch { /* حالت خصوصی مرورگر / سهمیه پر */ }
 }
 
 /* ───────────────── ۶) غنی‌سازی نماد (شناسنامه + دفتر سفارش) ───────────────── */

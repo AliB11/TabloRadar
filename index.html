@@ -17,8 +17,11 @@
 <link rel="canonical" href="https://tabloradar.ir/" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23071018'/><circle cx='16' cy='16' r='11.5' fill='none' stroke='%2316e08c' stroke-width='2'/><circle cx='21.5' cy='10.5' r='3' fill='%2316e08c'/></svg>" />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link rel="preconnect" href="https://cdn.tsetmc.com" crossorigin />
+<link rel="dns-prefetch" href="https://cdn.tsetmc.com" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300..800&display=swap" rel="stylesheet" />
+<!-- فونت مونو به‌صورت ناهمگان بارگذاری می‌شود تا کندی CDN بیرونی، اجرای اپ را بلاک نکند -->
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300..800&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
 <link rel="stylesheet" href="./assets/css/theme.css" />
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"تابلورادار — TabloRadar","alternateName":"TabloRadar","inLanguage":"fa-IR","applicationCategory":"FinanceApplication","operatingSystem":"Web","description":"سامانه کمی اسکن، تابلوخوانی و رتبه‌بندی نمادهای بورس تهران و فرابورس با قواعد رسمی TSETMC","offers":{"@type":"Offer","price":"0","priceCurrency":"IRR"}}</script>
 </head>
@@ -34,7 +37,7 @@
     <a href="#top" class="brand">
       <span class="brand-mark"><i data-lucide="radar" class="ic"></i></span>
       <span>تابلو<span class="grad">رادار</span></span>
-      <span class="ver mono hide-sm">v4.1</span>
+      <span class="ver mono hide-sm">v4.2</span>
     </a>
     <div class="nav-links">
       <a class="navlink" href="#pulse">نبض بازار</a>
@@ -398,7 +401,8 @@
   <div class="cmp-body" id="cmp-body"></div>
 </aside>
 
-<script src="https://unpkg.com/lucide@latest" onerror="window.__noIcons=1"></script>
+<!-- lucide با defer و روی jsdelivr (نسخهٔ پین‌شده): کندی/قطعی unpkg نباید اجرای اپ را بلاک کند -->
+<script defer src="https://cdn.jsdelivr.net/npm/lucide@0.469.0/dist/umd/lucide.min.js" onerror="window.__noIcons=1"></script>
 <script type="module" src="./assets/js/app.js"></script>
 </body>
 </html>

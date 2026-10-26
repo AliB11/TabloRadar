@@ -28,7 +28,7 @@ import {
 } from './sources.js';
 import {
   cdnSeedScan, cdnInfo, cdnBook, applyCdnInfo, applyCdnBook,
-  loadCodemap, saveCodemap,
+  loadCodemap, saveCodemap, writeSeedCache,
 } from './cdn.js';
 
 export const CFG = {
@@ -155,8 +155,9 @@ function parseTsetmcScript(text) {
 
 /* ───────────────── منابع اصلی ───────────────── */
 
-/** اسنپ‌شات کامل بازار (یک درخواست) — زنجیرهٔ منابع زنده تا اسنپ‌شات محلی */
-export async function fetchMarketSnapshot() {
+/** اسنپ‌شات کامل بازار (یک درخواست) — زنجیرهٔ منابع زنده تا اسنپ‌شات محلی
+ *  opts.onSeedPreview(partialRows, done, total): رندر تدریجی حین اسکن بذری CDN */
+export async function fetchMarketSnapshot(opts = {}) {
   const log = [];
 
   /* ۱) پروکسی هم‌ریشه (server.py) — داده را سرور از TSETMC/بورس‌تریدر می‌آورد */
@@ -216,11 +217,13 @@ export async function fetchMarketSnapshot() {
       const scan = await cdnSeedScan({
         seedSymbols, codemap: loadCodemap(),
         concurrency: 12,
+        onPreview: (partial, done, total) => opts.onSeedPreview?.(partial, done, total),
         onProgress: (done, total, ok, failed) => {
           if (done % 100 === 0 || done === total) log.push(`cdn-seed:${done}/${total}(ok:${ok},fail:${failed})`);
         },
       });
       if (scan.rows.length >= 30) {
+        writeSeedCache(scan.rows, scan.asOf);
         return {
           rows: scan.rows, source: `CDN رسمی TSETMC (اسکن بذری ${scan.ok} نماد)`,
           kind: 'live-cdn', live: true, route: 'cdn.tsetmc.com مستقیم', log,
@@ -412,24 +415,14 @@ export async function loadOfflineSnapshot() {
   } catch { return null; }
 }
 
-/** بارگذاری کامل: اسنپ‌شات + تاریخچه نمادهای منتخب (برای ستون‌های تکنیکال واقعی) */
-export async function loadMarket({ historyFor = 0, concurrency = 6, onProgress, enrichFor = 0, onEnrich } = {}) {
-  const snap = await fetchMarketSnapshot();
-  let insts = normalizeAll(snap.rows);
-
-  /* اگر رکورد آفلاین history داشت، همان کافی است */
-  const rawBySymbol = new Map((snap.rows || []).map(r => [String(r.l18 ?? r.symbol ?? ''), r]));
-  for (const it of insts) {
-    const raw = rawBySymbol.get(it.l18);
-    if (raw?.history && !it.history) it.history = expandHistory(raw.history);
-  }
-
-  if (historyFor > 0 && snap.live) {
+/** تاریخچه و غنی‌سازی CDN روی نمادهای نرمال‌شده — قابل فراخوانی پس‌زمینه (غیربلاک‌کننده) */
+export async function deepenMarket(insts, { historyFor = 0, concurrency = 6, enrichFor = 0, onProgress, onEnrich } = {}) {
+  if (historyFor > 0) {
     const need = insts.filter(i => !i.history)
       .sort((a, b) => (b.tval || 0) - (a.tval || 0)).slice(0, historyFor);
     let done = 0;
     await mapLimit(need, concurrency, async inst => {
-      const bars = await fetchHistory(inst, snap.snapshotMeta);
+      const bars = await fetchHistory(inst);
       if (bars) inst.history = bars.map(b => ({ ...b }));
       done++; onProgress?.(done, need.length, inst.l18);
     });
@@ -437,7 +430,7 @@ export async function loadMarket({ historyFor = 0, concurrency = 6, onProgress, 
 
   /* غنی‌سازی CDN: شناسنامهٔ رسمی (EPS/آستانه/۵۲هفته/شناوری) + دفتر سفارش زندهٔ ۵ سطحی
    * برای نمادهای پرگردش — از مسیر مستقیم مرورگر (CORS مجاز) حتی بدون سرور. */
-  if (enrichFor > 0 && snap.live) {
+  if (enrichFor > 0) {
     const targets = insts.filter(i => i.insCode)
       .sort((a, b) => (b.tval || 0) - (a.tval || 0)).slice(0, enrichFor);
     let edone = 0;
@@ -450,6 +443,24 @@ export async function loadMarket({ historyFor = 0, concurrency = 6, onProgress, 
       edone++; onEnrich?.(edone, targets.length, inst.l18);
     });
     saveCodemap(insts);
+  }
+  return insts;
+}
+
+/** بارگذاری کامل: اسنپ‌شات + تاریخچه نمادهای منتخب (برای ستون‌های تکنیکال واقعی) */
+export async function loadMarket({ historyFor = 0, concurrency = 6, onProgress, enrichFor = 0, onEnrich, onSeedPreview } = {}) {
+  const snap = await fetchMarketSnapshot({ onSeedPreview });
+  let insts = normalizeAll(snap.rows);
+
+  /* اگر رکورد آفلاین history داشت، همان کافی است */
+  const rawBySymbol = new Map((snap.rows || []).map(r => [String(r.l18 ?? r.symbol ?? ''), r]));
+  for (const it of insts) {
+    const raw = rawBySymbol.get(it.l18);
+    if (raw?.history && !it.history) it.history = expandHistory(raw.history);
+  }
+
+  if (historyFor > 0 || enrichFor > 0) {
+    await deepenMarket(insts, { historyFor, concurrency, enrichFor, onProgress, onEnrich });
   }
 
   return { instruments: insts, ...snap };
