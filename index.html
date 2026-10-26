@@ -3,17 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>تابلورادار — کالبدشکافی کمی تابلوی بورس تهران و رتبه‌بندی سیگنال‌ها</title>
-<meta name="description" content="اسکن لحظه‌ای کل بازار سرمایه ایران با قواعد واقعی تالار: دامنه نوسان ۳٪، حجم مبنای یک، صف خرید/فروش، سرانه و قدرت خریدار حقیقی، کد‌به‌کد، جریان پول هوشمند و تکنیکال چندبازه روی تاریخچه واقعی TSETMC — با فیلترهای وتو و امتیاز ۰ تا ۱۰۰." />
+<title>تابلورادار — کالبدشکافی کمی تابلوی بورس تهران و رتبه‌بندی سیگنالها</title>
+<meta name="description" content="اسکن لحظهای بازار سرمایه ایران: تابلوخوانی، جریان پول حقیقی، صفها، دفتر سفارش زنده و تکنیکال چندبازه با قواعد رسمی TSETMC و امتیاز ۰ تا ۱۰۰." />
 <meta name="theme-color" content="#04070d" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="fa_IR" />
 <meta property="og:title" content="تابلورادار — کالبدشکافی کمی تابلوی بورس تهران" />
-<meta property="og:description" content="دیده‌بان کمی بازار سرمایه ایران: تابلوخوانی، جریان پول حقیقی، کد‌به‌کد، صف‌سنجی و تکنیکال چندبازه با قواعد رسمی TSETMC." />
+<meta property="og:description" content="دیدهبان کمی بازار سرمایه ایران: تابلوخوانی، جریان پول حقیقی، صفسنجی و تکنیکال چندبازه با قواعد رسمی TSETMC." />
 <meta property="og:image" content="https://tabloradar.ir/og-cover.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="تابلورادار — کالبدشکافی کمی تابلوی بورس تهران" />
-<meta name="twitter:description" content="اسکن کل بازار با قواعد تالار ایران: دامنه ۳٪، حجم مبنای یک، صف‌ها، پول هوشمند و امتیاز ۰ تا ۱۰۰." />
+<meta name="twitter:description" content="اسکن کل بازار با قواعد تالار ایران: دامنه ۳٪، حجم مبنای یک، صفها، پول هوشمند و امتیاز ۰ تا ۱۰۰." />
 <link rel="canonical" href="https://tabloradar.ir/" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23071018'/><circle cx='16' cy='16' r='11.5' fill='none' stroke='%2316e08c' stroke-width='2'/><circle cx='21.5' cy='10.5' r='3' fill='%2316e08c'/></svg>" />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" />
@@ -23,7 +23,7 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"تابلورادار — TabloRadar","alternateName":"TabloRadar","inLanguage":"fa-IR","applicationCategory":"FinanceApplication","operatingSystem":"Web","description":"سامانه کمی اسکن، تابلوخوانی و رتبه‌بندی نمادهای بورس تهران و فرابورس با قواعد رسمی TSETMC","offers":{"@type":"Offer","price":"0","priceCurrency":"IRR"}}</script>
 </head>
 <body class="antialiased">
-<a class="skip" href="#signals">پرش به دیده‌بان سیگنال‌ها</a>
+<a class="skip" href="#signals">پرش به دیدهبان سیگنالها</a>
 <div class="aurora" aria-hidden="true"></div>
 <div class="gridbg" aria-hidden="true"></div>
 <div class="scrollbar-top" id="scrollbar" aria-hidden="true"></div>
@@ -32,32 +32,29 @@
 <nav class="nav" id="nav">
   <div class="wrap nav-in">
     <a href="#top" class="brand">
-      <span class="brand-mark"><i data-lucide="radar" style="width:18px;height:18px;color:var(--green)"></i></span>
+      <span class="brand-mark"><i data-lucide="radar" class="ic"></i></span>
       <span>تابلو<span class="grad">رادار</span></span>
-      <span class="mono hide-sm" style="font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:7px;padding:2px 7px">TSE·QUANT v4.1</span>
+      <span class="ver mono hide-sm">v4.1</span>
     </a>
     <div class="nav-links">
       <a class="navlink" href="#pulse">نبض بازار</a>
-      <a class="navlink" href="#signals">دیده‌بان</a>
+      <a class="navlink" href="#signals">دیدهبان</a>
       <a class="navlink" href="#engine">موتور امتیاز</a>
-      <a class="navlink" href="#scorecard">کارنامۀ مدل</a>
-      <a class="navlink" href="#output">ترمینال و خروجی</a>
+      <a class="navlink" href="#scorecard">کارنامه مدل</a>
+      <a class="navlink" href="#output">خروجی</a>
     </div>
-    <div class="row" style="gap:9px">
+    <div class="nav-actions">
       <div class="mkt-pill" id="mkt-pill">
         <span class="pulse-dot" id="mkt-dot"></span>
         <span id="mkt-status">—</span>
-        <span class="mono" dir="ltr" id="tehran-clock" style="color:var(--ink)">--:--:--</span>
+        <span class="mono clock" dir="ltr" id="tehran-clock">--:--:--</span>
       </div>
-      <button class="btn-mini" id="btn-tour" title="آشنایی ۹۰ ثانیه‌ای با سامانه">
-        <i data-lucide="compass" style="width:13px;height:13px"></i><span>تور</span>
+      <button class="btn-icon" id="btn-tour" title="تور کوتاه سامانه" aria-label="تور سامانه">
+        <i data-lucide="compass" class="ic-sm"></i>
       </button>
-      <button class="btn-mini" id="btn-settings" title="تنظیمات داده، واحد پول و وزن‌ها" aria-haspopup="dialog">
-        <i data-lucide="settings-2" style="width:13px;height:13px"></i><span>تنظیمات</span>
+      <button class="btn-mini" id="btn-settings" title="تنظیمات" aria-haspopup="dialog">
+        <i data-lucide="settings-2" class="ic-sm"></i><span>تنظیمات</span>
       </button>
-      <a href="#signals" class="btn btn-primary btn-sm hide-sm">
-        <i data-lucide="zap" style="width:14px;height:14px"></i> دیده‌بان امروز
-      </a>
     </div>
   </div>
 </nav>
@@ -66,150 +63,118 @@
 <header id="top" class="hero">
   <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
   <div class="wrap hero-body">
-    <div class="reveal center">
-      <span class="eyebrow"><i data-lucide="cpu" style="width:13px;height:13px"></i>
-        سامانه کمی بازار سرمایه ایران • داده TSETMC • قواعد واقعی تالار ۱۴۰۵
-      </span>
+    <span class="eyebrow reveal center"><i data-lucide="cpu" class="ic-sm"></i> دادهٔ TSETMC · قواعد تالار ۱۴۰۵</span>
+    <h1 class="h1 reveal center">تابلوی بورس تهران،<br /><span class="grad">کالبدشکافی‌شده در کسر ثانیه.</span></h1>
+    <p class="lead reveal center mx-auto hero-lead">جریان پول حقیقی، صفها و دفتر سفارش زنده — با امتیاز ۰ تا ۱۰۰ و نقشه معامله برای هر نماد.</p>
+    <div class="reveal hero-actions">
+      <a href="#signals" class="btn btn-primary"><i data-lucide="radar" class="ic"></i> مشاهده دیدهبان</a>
+      <button class="btn" id="hero-mode" title="تغییر بوم پسزمینه"><i data-lucide="network" class="ic"></i> بوم: شبکه عصبی</button>
     </div>
-    <h1 class="h1 reveal center">
-      تابلوی بورس تهران،<br />
-      <span class="grad">کالبدشکافی‌شده در کسر ثانیه.</span>
-    </h1>
-    <p class="lead reveal center mx-auto">
-      اسکن لحظه‌ای کل تابلو — <b class="up">جریان پول حقیقی</b>، <b class="up">صف‌ها</b> و
-      <b class="up">دفتر سفارش زنده</b> — با امتیاز ۰ تا ۱۰۰، ضریب اطمینان و نقشه معامله برای هر نماد.
-    </p>
-    <div class="reveal row center" style="justify-content:center;margin-top:26px">
-      <a href="#signals" class="btn btn-primary"><i data-lucide="radar" style="width:16px;height:16px"></i> مشاهده دیده‌بان بازار</a>
-      <button class="btn" id="hero-mode" title="حالت دوم بوم: شبکه عصبی — صرفاً تصویرسازی معماری امتیازدهی است، نه مدل آموزشی فعال">
-        <i data-lucide="network" style="width:16px;height:16px"></i> بوم: شبکه عصبی
-      </button>
-    </div>
-
     <div class="reveal stat-strip">
       <div class="stat-big"><div class="v grad" id="st-scan" dir="ltr" aria-live="polite">—</div><div class="l">نماد اسکن‌شده</div></div>
-      <div class="stat-big"><div class="v" id="st-time" dir="ltr" aria-live="polite">—</div><div class="l">زمان تحلیل — فقط محاسبه، زمان دریافت داده جدا اعلام می‌شود</div></div>
+      <div class="stat-big"><div class="v" id="st-time" dir="ltr" aria-live="polite">—</div><div class="l">زمان تحلیل (ثانیه)</div></div>
       <div class="stat-big"><div class="v down" id="st-veto" dir="ltr" aria-live="polite">—</div><div class="l">نماد وتو‌شده</div></div>
       <div class="stat-big"><div class="v grad" id="st-conf" dir="ltr" aria-live="polite">—</div><div class="l">میانگین ضریب اطمینان</div></div>
     </div>
   </div>
-  <div class="scroll-hint" aria-hidden="true">
-    <span>اسکرول کنید</span>
-    <i data-lucide="arrow-down" class="floaty" style="width:15px;height:15px"></i>
-  </div>
 </header>
 
 <!-- ══════════════════ نبض بازار ══════════════════ -->
-<section id="pulse" class="relative" style="z-index:10">
-  <div class="wrap" style="padding-block:22px">
-    <div class="glass p-5">
-      <div class="row-between" style="margin-bottom:14px">
-        <div class="row" style="gap:8px">
-          <i data-lucide="activity" style="width:15px;height:15px;color:var(--green)"></i>
-          <b style="font-size:14px">نبض بازار</b>
-          <span class="tiny faint">محاسبه از همان اسنپ‌شات — به‌روزرسانی خودکار</span>
-        </div>
-        <div class="row" style="gap:9px">
-          <span class="mono tiny" dir="ltr" id="pulse-stamp">—</span>
-          <button class="btn-mini" id="pulse-refresh"><i data-lucide="rotate-cw" style="width:12px;height:12px"></i><span>واکشی</span></button>
+<section id="pulse" class="band">
+  <div class="wrap">
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title"><i data-lucide="activity" class="ic ink-green"></i><b>نبض بازار</b><span class="tiny faint hide-sm">همان اسنپ‌شات</span></div>
+        <div class="row gap8">
+          <span class="mono tiny faint" dir="ltr" id="pulse-stamp">—</span>
+          <button class="btn-mini" id="pulse-refresh"><i data-lucide="rotate-cw" class="ic-sm"></i><span>واکشی</span></button>
         </div>
       </div>
-      <div class="pulse" id="pulse-grid"></div>
+      <div class="card-body"><div class="pulse" id="pulse-grid"></div></div>
     </div>
   </div>
 </section>
 
 <!-- ══════════════════ تیکر ══════════════════ -->
-<div class="ticker reveal" role="marquee" aria-label="آخرین قیمت پرحجم‌ترین نمادها">
+<div class="ticker" role="marquee" aria-label="آخرین قیمت پرحجمترین نمادها">
   <div class="ticker-track" id="ticker-track" dir="ltr"></div>
 </div>
 
-<!-- ══════════════════ دیده‌بان سیگنال‌ها ══════════════════ -->
+<!-- ══════════════════ دیدهبان سیگنالها ══════════════════ -->
 <section id="signals" class="section">
   <div class="wrap">
-    <div class="reveal row-between">
-      <div style="max-width:64ch">
-        <span class="eyebrow"><i data-lucide="satellite-dish" style="width:13px;height:13px"></i> دیده‌بان امتیازدهی‌شده — با فیلترهای وتوی بازار ایران</span>
-        <h2 class="h2">۱۰ نماد برتر، با <span class="grad">دلیل</span> و <span class="grad">نقشه معامله</span></h2>
-        <p class="lead" style="font-size:14px;margin-top:12px">
-          ابتدا نمادهای متوقف، صف‌فروش‌قفل و کم‌نقدشوندگی حذف می‌شوند؛ سپس پنج عامل روی داده واقعی امتیاز می‌گیرند.
-          روی هر ردیف کلیک کنید تا کالبدشکافی کامل نمایش داده شود.
-        </p>
+    <div class="sec-head reveal">
+      <div class="sec-copy">
+        <span class="eyebrow"><i data-lucide="satellite-dish" class="ic-sm"></i> دیدهبان امتیازدهی‌شده</span>
+        <h2 class="h2">نمادهای برتر، با <span class="grad">دلیل</span> و <span class="grad">نقشه معامله</span></h2>
+        <p class="sec-lead">نمادهای متوقف، صف‌فروش‌قفل و کم‌نقدشونده حذف میشوند؛ سپس پنج عامل روی داده واقعی امتیاز می‌گیرند.</p>
+        <div class="chips" id="src-chips"></div>
       </div>
-      <div class="row" id="src-chips" style="justify-content:flex-end"></div>
     </div>
 
-    <!-- تب‌ها -->
-    <div class="row reveal" role="tablist" aria-label="نمای دیده‌بان" style="margin-top:26px">
-      <button class="chip on" role="tab" aria-selected="true" data-view="table"><i data-lucide="table-2" style="width:12px;height:12px"></i> جدول سیگنال‌ها</button>
-      <button class="chip" role="tab" aria-selected="false" data-view="heat"><i data-lucide="layout-grid" style="width:12px;height:12px"></i> هیت‌مپ صنایع</button>
-      <button class="chip" role="tab" aria-selected="false" data-view="radar"><i data-lucide="siren" style="width:12px;height:12px"></i> رادار صف و کد‌به‌کد</button>
-      <button class="chip" role="tab" aria-selected="false" data-view="veto"><i data-lucide="shield-x" style="width:12px;height:12px"></i> وتوها (<span id="veto-n">—</span>)</button>
+    <div class="tabs reveal" role="tablist" aria-label="نمای دیدهبان">
+      <button class="tab on" role="tab" aria-selected="true" data-view="table"><i data-lucide="table-2" class="ic-sm"></i> جدول سیگنالها</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="heat"><i data-lucide="layout-grid" class="ic-sm"></i> هیت‌مپ صنایع</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="radar"><i data-lucide="siren" class="ic-sm"></i> رادار صف و کد‌به‌کد</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="veto"><i data-lucide="shield-x" class="ic-sm"></i> وتوها (<span id="veto-n">—</span>)</button>
     </div>
 
-    <!-- فیلترها -->
-    <div class="glass reveal p-5" style="margin-top:14px;border-radius:16px">
-      <div class="row-between" style="gap:12px">
-        <div class="row" style="gap:10px;flex:1">
-          <label class="row" style="gap:7px;flex:1;min-width:190px">
-            <i data-lucide="search" style="width:14px;height:14px;color:var(--faint)"></i>
-            <input id="f-q" type="search" placeholder="جستجوی نماد یا نام شرکت…"
-                   style="flex:1;background:none;border:0;color:var(--ink);outline:none;font-size:13px;min-width:120px" aria-label="جستجوی نماد" />
-          </label>
-          <select id="f-sector" class="mono" style="background:rgba(255,255,255,.03);border:1px solid var(--line2);color:var(--muted);border-radius:10px;padding:7px 10px;font-size:11.5px" aria-label="فیلتر صنعت"></select>
-          <select id="f-market" style="background:rgba(255,255,255,.03);border:1px solid var(--line2);color:var(--muted);border-radius:10px;padding:7px 10px;font-size:11.5px" aria-label="فیلتر بازار">
-            <option value="">همه بازارها</option>
-            <option value="بورس">بورس تهران</option>
-            <option value="فرابورس">فرابورس</option>
-            <option value="پایه">بازار پایه</option>
-          </select>
-        </div>
-        <div class="row" style="gap:8px">
+    <div class="filters card reveal">
+      <div class="filters-row">
+        <label class="search">
+          <i data-lucide="search" class="ic-sm"></i>
+          <input id="f-q" type="search" placeholder="جستجوی نماد یا نام شرکت…" aria-label="جستجوی نماد" />
+        </label>
+        <select id="f-sector" class="select" aria-label="فیلتر صنعت"><option value="">همه صنایع</option></select>
+        <select id="f-market" class="select" aria-label="فیلتر بازار">
+          <option value="">همه بازارها</option>
+          <option value="بورس">بورس تهران</option>
+          <option value="فرابورس">فرابورس</option>
+          <option value="پایه">بازار پایه</option>
+        </select>
+        <span class="filters-sep" aria-hidden="true"></span>
+        <div class="filters-tail">
           <span class="tiny faint">نمایش</span>
-          <select id="f-top" style="background:rgba(255,255,255,.03);border:1px solid var(--line2);color:var(--muted);border-radius:10px;padding:7px 10px;font-size:11.5px" aria-label="تعداد نماد">
+          <select id="f-top" class="select" aria-label="تعداد نماد">
             <option value="10">۱۰</option><option value="20">۲۰</option><option value="40">۴۰</option><option value="1000">همه</option>
           </select>
-          <button class="btn-mini" id="btn-f-reset"><i data-lucide="filter-x" style="width:12px;height:12px"></i><span>پاک‌سازی</span></button>
+          <button class="btn-mini" id="btn-f-reset"><i data-lucide="filter-x" class="ic-sm"></i><span>پاک‌سازی</span></button>
         </div>
       </div>
-      <div class="row" style="margin-top:12px;gap:16px">
-        <label class="switch"><input type="checkbox" id="f-limitup" /> فقط چسبیده به سقف مجاز</label>
-        <label class="switch"><input type="checkbox" id="f-inflow" /> فقط ورود پول حقیقی</label>
+      <div class="filters-foot">
+        <label class="switch"><input type="checkbox" id="f-limitup" /> چسبیده به سقف</label>
+        <label class="switch"><input type="checkbox" id="f-inflow" /> ورود پول حقیقی</label>
         <label class="switch"><input type="checkbox" id="f-queuefree" /> بدون صف قفل</label>
-        <span class="tiny faint" id="f-count"></span>
+        <span class="tiny faint count" id="f-count"></span>
       </div>
     </div>
 
-    <div class="split" style="margin-top:22px;align-items:start">
+    <div class="split">
       <!-- نمای جدول -->
-      <div class="glass reveal" style="overflow:hidden;border-radius:20px" id="view-table">
+      <div class="card table-card reveal" id="view-table">
         <div class="card-hd">
-          <div class="row" style="gap:9px">
-            <i data-lucide="activity" style="width:16px;height:16px;color:var(--green)"></i>
-            <b style="font-size:14.5px">میز رتبه‌بندی</b>
-            <span class="mono tiny faint" dir="ltr" id="scan-meta">— در انتظار واکشی</span>
-          </div>
-          <div class="row" style="gap:8px">
-            <button class="btn-mini" id="btn-csv" disabled title="خروجی CSV از همان داده‌ای که می‌بینید"><i data-lucide="file-spreadsheet" style="width:12px;height:12px"></i><span>CSV</span></button>
-            <button class="btn-mini" id="btn-share" disabled title="ارسال ۱۰ سیگنال به تلگرام"><i data-lucide="send" style="width:12px;height:12px"></i><span>اشتراک</span></button>
-            <button class="btn-mini" id="live-btn"><i data-lucide="rotate-cw" style="width:12px;height:12px"></i><span>واکشی مجدد</span></button>
+          <div class="card-title"><i data-lucide="activity" class="ic ink-green"></i><b>میز رتبه‌بندی</b><span class="mono tiny faint" dir="ltr" id="scan-meta">—</span></div>
+          <div class="row gap8">
+            <button class="btn-mini" id="btn-csv" disabled title="خروجی CSV"><i data-lucide="file-spreadsheet" class="ic-sm"></i><span>CSV</span></button>
+            <button class="btn-mini" id="btn-share" disabled title="اشتراک در تلگرام"><i data-lucide="send" class="ic-sm"></i><span>اشتراک</span></button>
+            <button class="btn-mini" id="live-btn"><i data-lucide="rotate-cw" class="ic-sm"></i><span>واکشی مجدد</span></button>
           </div>
         </div>
         <div class="table-wrap">
           <table class="dtable" id="sig-table">
-            <caption class="sr-only">جدول ۱۰ نماد برتر بازار سرمایه ایران با امتیاز، سنجه‌های تابلوخوانی و نقشه معامله</caption>
+            <caption class="sr-only">جدول نمادهای برتر بازار سرمایه ایران با امتیاز، سنجههای تابلوخوانی و نقشه معامله</caption>
             <thead>
               <tr>
                 <th scope="col">#</th>
                 <th scope="col">نماد / صنعت</th>
                 <th scope="col" class="sortable" data-sort="chg">آخرین <span class="tiny">(ریال)</span></th>
-                <th scope="col" class="sortable hide-sm" data-sort="chgClose">پایانی‌نسبت‌دیروز</th>
+                <th scope="col" class="sortable hide-sm" data-sort="chgClose">پایانی/دیروز</th>
                 <th scope="col" class="sortable" data-sort="power">قدرت خریدار</th>
                 <th scope="col" class="sortable hide-sm" data-sort="netReal">پول حقیقی</th>
                 <th scope="col" class="sortable hide-sm" data-sort="shock">حجم مشکوک</th>
                 <th scope="col" class="sortable hide-sm" data-sort="cap">ظرفیت تا سقف</th>
                 <th scope="col" class="hide-sm">روند ۳۰ جلسه</th>
-                <th scope="col" title="کوتاه‌مدت / میان‌مدت / بلندمدت">تکنیکال <span class="tiny">(ک/م/ب)</span></th>
+                <th scope="col" title="کوتاهمدت / میانمدت / بلندمدت">تکنیکال <span class="tiny">(ک/م/ب)</span></th>
                 <th scope="col" class="sortable" data-sort="score">امتیاز</th>
                 <th scope="col">افق / ریسک</th>
               </tr>
@@ -218,19 +183,10 @@
           </table>
         </div>
         <div id="live-notice"></div>
-        <div class="risk-banner">
-          <i data-lucide="alert-triangle" style="width:14px;height:14px;color:var(--amber);flex:none;margin-top:2px"></i>
-          <span>این خروجی <b>توصیه سرمایه‌گذاری نیست</b>؛ یک رتبه‌بندی آماری روی داده عمومی است. بازار سرمایه ایران با ریسک نظامی/سیاسی،
-          دامنه نوسان محدودکننده نقدشوندگی و تغییرات ناگهانی مقرراتی همراه است. حد ضرر را جدی بگیرید.</span>
-        </div>
+        <div class="risk-note"><i data-lucide="info" class="ic-sm"></i><span>رتبه‌بندی آماری است، <b>توصیه سرمایه‌گذاری نیست</b> — حد ضرر را جدی بگیرید.</span></div>
         <div class="table-foot">
-          <i data-lucide="mouse-pointer-click" style="width:13px;height:13px"></i>
-          <span>کلیک روی هر ردیف = کالبدشکافی کامل + نقشه معامله.</span>
-          <span class="row" style="gap:7px;margin-inline-start:auto">
-            <i class="tdot bull"></i> صعودی
-            <i class="tdot neutral"></i> خنثی
-            <i class="tdot bear"></i> نزولی
-          </span>
+          <span class="tiny faint">کلیک روی ردیف = جزئیات</span>
+          <span class="legend-mini"><i class="tdot bull"></i> صعودی <i class="tdot neutral"></i> خنثی <i class="tdot bear"></i> نزولی</span>
         </div>
       </div>
 
@@ -239,56 +195,39 @@
     </div>
 
     <!-- نمای هیت‌مپ -->
-    <div id="view-heat" hidden style="margin-top:22px">
-      <div class="glass p-6" style="border-radius:20px">
-        <div class="row-between" style="margin-bottom:6px">
-          <div>
-            <b style="font-size:14.5px">هیت‌مپ صنایع</b>
-            <p class="tiny faint" style="margin:6px 0 0">اندازه کاشی ∝ ارزش معاملات گروه؛ رنگ ∝ میانگین تغییر قیمت. کلیک = فیلتر جدول.</p>
-          </div>
-          <div class="row" style="gap:6px">
-            <span class="tiny faint">سرد</span>
-            <span style="width:88px;height:8px;border-radius:99px;background:linear-gradient(90deg,#ff4d69,#8a4a5a,#ffc14d,#14d484)"></span>
-            <span class="tiny faint">گرم</span>
-          </div>
+    <div id="view-heat" class="view-panel" hidden>
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title"><b>هیت‌مپ صنایع</b><span class="tiny faint">کلیک = فیلتر جدول</span></div>
+          <div class="heat-scale"><span class="tiny faint">سرد</span><span class="scale-bar"></span><span class="tiny faint">گرم</span></div>
         </div>
-        <div class="heat" id="heat-grid"></div>
+        <div class="card-body"><div class="heat" id="heat-grid"></div></div>
       </div>
     </div>
 
     <!-- نمای رادار -->
-    <div id="view-radar" hidden style="margin-top:22px">
+    <div id="view-radar" class="view-panel" hidden>
       <div class="grid g3">
-        <div class="glass p-6" style="border-radius:20px">
-          <div class="row" style="gap:8px;margin-bottom:12px">
-            <span class="ico" style="background:rgba(22,224,140,.1);border:1px solid rgba(22,224,140,.3)"><i data-lucide="arrow-up-narrow-wide" style="color:var(--green)"></i></span>
-            <b style="font-size:14px">سنگین‌ترین صف‌های خرید</b>
-          </div>
-          <div class="mini-list" id="radar-queues"></div>
+        <div class="card">
+          <div class="card-hd"><div class="card-title"><span class="ico ico-green"><i data-lucide="arrow-up-narrow-wide" class="ic"></i></span><b>سنگین‌ترین صفهای خرید</b></div></div>
+          <div class="card-body"><div class="mini-list" id="radar-queues"></div></div>
         </div>
-        <div class="glass p-6" style="border-radius:20px">
-          <div class="row" style="gap:8px;margin-bottom:12px">
-            <span class="ico" style="background:rgba(155,140,255,.1);border:1px solid rgba(155,140,255,.3)"><i data-lucide="users" style="color:var(--violet)"></i></span>
-            <b style="font-size:14px">کد‌به‌کد و جریان حقیقی</b>
-          </div>
-          <div class="mini-list" id="radar-k2k"></div>
+        <div class="card">
+          <div class="card-hd"><div class="card-title"><span class="ico ico-violet"><i data-lucide="users" class="ic"></i></span><b>کد‌به‌کد و جریان حقیقی</b></div></div>
+          <div class="card-body"><div class="mini-list" id="radar-k2k"></div></div>
         </div>
-        <div class="glass p-6" style="border-radius:20px">
-          <div class="row" style="gap:8px;margin-bottom:12px">
-            <span class="ico" style="background:rgba(255,193,77,.1);border:1px solid rgba(255,193,77,.3)"><i data-lucide="hourglass" style="color:var(--amber)"></i></span>
-            <b style="font-size:14px">روی رادار فردا</b>
-          </div>
-          <div class="mini-list" id="radar-watch"></div>
+        <div class="card">
+          <div class="card-hd"><div class="card-title"><span class="ico ico-amber"><i data-lucide="hourglass" class="ic"></i></span><b>روی رادار فردا</b></div></div>
+          <div class="card-body"><div class="mini-list" id="radar-watch"></div></div>
         </div>
       </div>
     </div>
 
     <!-- نمای وتوها -->
-    <div id="view-veto" hidden style="margin-top:22px">
-      <div class="glass p-6" style="border-radius:20px">
-        <b style="font-size:14.5px">چه کسانی و چرا حذف شدند؟</b>
-        <p class="tiny faint" style="margin:6px 0 14px">وتو یعنی «حتی با امتیاز بالا هم نمایش داده نمی‌شود» — این شفافیت، اعتبار رتبه‌بندی است.</p>
-        <div class="mini-list" id="veto-list"></div>
+    <div id="view-veto" class="view-panel" hidden>
+      <div class="card">
+        <div class="card-hd"><div class="card-title"><b>نمادهای حذف‌شده</b><span class="tiny faint">وتو یعنی حتی با امتیاز بالا هم نمایش داده نمی‌شود</span></div></div>
+        <div class="card-body"><div class="mini-list" id="veto-list"></div></div>
       </div>
     </div>
   </div>
@@ -297,174 +236,117 @@
 <!-- ══════════════════ موتور امتیاز ══════════════════ -->
 <section id="engine" class="section section-tint">
   <div class="wrap">
-    <div class="reveal center" style="max-width:70ch;margin-inline:auto">
-      <span class="eyebrow"><i data-lucide="gauge" style="width:13px;height:13px"></i> ScoringEngine — مدل پنج‌عاملی با اطمینان</span>
+    <div class="sec-head center reveal">
+      <span class="eyebrow"><i data-lucide="gauge" class="ic-sm"></i> ScoringEngine · مدل پنج‌عاملی</span>
       <h2 class="h2">از پالس تابلو تا <span class="grad">امتیاز ۰ تا ۱۰۰</span></h2>
-      <p class="lead mx-auto">
-        هر سنجه با نگاشت نرم (سیگموئید) به زیرامتیاز ۰..۱۰۰ تبدیل می‌شود؛ عوامل غایب «صفر» نمی‌شوند،
-        بلکه از مخرج حذف می‌شوند و <b class="up">ضریب اطمینان</b> پایین می‌آید. وزن‌ها را می‌توانید تغییر دهید — جدول زنده بازمحاسبه می‌شود.
-      </p>
-      <div class="mono row center" dir="ltr" style="margin-top:18px;font-size:13px;gap:7px">
-        <span class="faint">Score =</span>
-        <span style="color:var(--green)">wT·T</span><span class="faint">+</span>
-        <span style="color:var(--cyan)">wS·S</span><span class="faint">+</span>
-        <span style="color:var(--violet)">wM·M</span><span class="faint">+</span>
-        <span style="color:var(--amber)">wL·L</span><span class="faint">+</span>
-        <span style="color:var(--red)">wR·R</span>
-        <span class="faint">, Σw = 1</span>
-      </div>
+      <p class="sec-lead mx-auto">هر سنجه با نگاشت نرم به زیرامتیاز تبدیل می‌شود؛ عوامل غایب از مخرج حذف میشوند و ضریب اطمینان پایین میآید.</p>
+      <div class="formula mono" dir="ltr"><span class="faint">Score =</span> <span class="c-green">wT·T</span> + <span class="c-cyan">wS·S</span> + <span class="c-violet">wM·M</span> + <span class="c-amber">wL·L</span> + <span class="c-red">wR·R</span> <span class="faint">, Σw = 1</span></div>
     </div>
 
-    <div class="split-eng" style="margin-top:52px">
-      <div class="reveal donut-wrap">
-        <svg class="donut" id="w-donut" viewBox="0 0 42 42" role="img" aria-label="نمودار وزن پنج عامل"></svg>
-        <div class="legend" id="w-legend"></div>
+    <div class="engine-grid">
+      <div class="card donut-card reveal">
+        <div class="card-hd"><div class="card-title"><b>وزن عوامل</b><span class="tiny faint">قابل تغییر</span></div></div>
+        <div class="card-body">
+          <div class="donut-wrap">
+            <svg class="donut" id="w-donut" viewBox="0 0 42 42" role="img" aria-label="نمودار وزن پنج عامل"></svg>
+            <div class="legend" id="w-legend"></div>
+          </div>
+        </div>
       </div>
 
-      <div class="grid g2">
-        <div id="factor-cards" class="grid g2" style="grid-column:1/-1"></div>
-
-        <!-- اسلایدر وزن‌ها -->
-        <div class="glass p-6 reveal" style="grid-column:1/-1;border-radius:20px">
-          <div class="row-between" style="margin-bottom:14px">
-            <div class="row" style="gap:9px">
-              <span class="ico" style="background:rgba(76,201,255,.1);border:1px solid rgba(76,201,255,.3)"><i data-lucide="sliders-horizontal" style="color:var(--cyan)"></i></span>
-              <div>
-                <b style="font-size:14.5px">سناریوی شخصی‌سازی‌شده (What-If)</b>
-                <p class="tiny faint" style="margin:4px 0 0">وزن را تغییر دهید تا ببینید «سبد شما» با مدل شما چه می‌شود — محاسبه در همان لحظه، در مرورگر.</p>
+      <div class="engine-right">
+        <div class="factor-strip reveal" id="factor-cards"></div>
+        <div class="card reveal">
+          <div class="card-hd">
+            <div class="card-title"><span class="ico ico-cyan"><i data-lucide="sliders-horizontal" class="ic"></i></span><b>سناریوی شخصی‌سازی‌شده</b><span class="tiny faint hide-sm">What-If</span></div>
+            <button class="btn-mini" id="w-reset"><i data-lucide="undo-2" class="ic-sm"></i><span>بازنشانی</span></button>
+          </div>
+          <div class="card-body">
+            <div class="sliders" id="w-sliders"></div>
+            <div class="rules-row">
+              <label class="field"><span>حداقل ارزش معاملات (میلیارد ریال)</span><input type="number" id="r-minval" min="0" step="10" value="50" dir="ltr" /></label>
+              <div class="switch-row">
+                <label class="switch"><input type="checkbox" id="r-base" /> بازار پایه</label>
+                <label class="switch"><input type="checkbox" id="r-funds" /> صندوقها</label>
+                <label class="switch"><input type="checkbox" id="r-hist" /> فقط با تاریخچه</label>
               </div>
             </div>
-            <button class="btn-mini" id="w-reset"><i data-lucide="undo-2" style="width:12px;height:12px"></i><span>بازنشانی</span></button>
-          </div>
-          <div class="grid" id="w-sliders" style="gap:14px"></div>
-          <div class="grid g2" style="margin-top:16px;gap:12px">
-            <label class="field">
-              <span>حداقل ارزش معاملات روز (میلیارد ریال) — وتوی نقدشوندگی</span>
-              <input type="number" id="r-minval" min="0" step="10" value="50" dir="ltr" />
-            </label>
-            <div class="row" style="gap:18px;align-items:flex-start">
-              <label class="switch"><input type="checkbox" id="r-base" /> نمادهای بازار پایه</label>
-              <label class="switch"><input type="checkbox" id="r-funds" /> صندوق‌ها و اوراق</label>
-              <label class="switch"><input type="checkbox" id="r-hist" /> فقط نماد با تاریخچه</label>
-            </div>
-          </div>
-          <div class="row-between" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
-            <span class="tiny faint">نتیجه سناریو روی همین داده:</span>
-            <span class="mono tiny" id="w-summary" dir="ltr">—</span>
+            <div class="scenario-foot"><span class="tiny faint">نتیجه روی همین داده</span><span class="mono tiny" id="w-summary" dir="ltr">—</span></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- وتوها -->
-    <div class="reveal" style="margin-top:56px">
-      <div class="row" style="gap:9px;margin-bottom:16px">
-        <i data-lucide="shield-alert" style="width:18px;height:18px;color:var(--red)"></i>
-        <h3 class="h3">فیلترهای وتوکننده <span class="faint" style="font-weight:400;font-size:13px">— شمارش زنده از اجرای همین اسکن</span></h3>
-      </div>
-      <div class="grid g3" id="veto-cards"></div>
-    </div>
+    <div class="sub-head reveal"><i data-lucide="shield-alert" class="ic ink-red"></i><h3 class="h3">فیلترهای وتو‌کننده</h3><span class="tiny faint">شمارش زنده از همین اسکن</span></div>
+    <div class="veto-grid" id="veto-cards"></div>
 
-    <!-- قوانین بازار -->
-    <div class="reveal grid g3" style="margin-top:40px">
-      <div class="glass p-6" style="border-radius:18px">
-        <div class="row" style="gap:9px;margin-bottom:10px">
-          <span class="ico" style="background:rgba(255,193,77,.1);border:1px solid rgba(255,193,77,.3)"><i data-lucide="gauge-circle" style="color:var(--amber)"></i></span>
-          <b style="font-size:14px">دامنه نوسان</b>
-        </div>
-        <p class="small muted">سهام و حق‌تقدم در بورس و بازارهای اصلی فرابورس <b class="up">±۳٪</b>؛ صندوق سهامی <b>±۴٪</b>، صندوق درآمد ثابت <b>±۳٪</b>، صندوق طلا <b>±۱۰٪</b> و بازار پایه <b>۱٪ تا ۳٪</b>. اگر <span class="mono">tmin/tmax</span> در داده باشد، همان مرجع قطعی است.</p>
-      </div>
-      <div class="glass p-6" style="border-radius:18px">
-        <div class="row" style="gap:9px;margin-bottom:10px">
-          <span class="ico" style="background:rgba(76,201,255,.1);border:1px solid rgba(76,201,255,.3)"><i data-lucide="layers-2" style="color:var(--cyan)"></i></span>
-          <b style="font-size:14px">حجم مبنا = ۱</b>
-        </div>
-        <p class="small muted">از <b class="up">۱ دی ۱۴۰۴</b> حجم مبنا برای همه نمادهای بورسی و فرابورسی برابر یک سهم شد و مقررات «گره معاملاتی» لغو گردید.
-        یعنی قیمت پایانی با یک معامله هم جابه‌جا می‌شود؛ پس تابلوخوانی و قدرت خریدار اهمیت دوچندانی یافته است.</p>
-      </div>
-      <div class="glass p-6" style="border-radius:18px">
-        <div class="row" style="gap:9px;margin-bottom:10px">
-          <span class="ico" style="background:rgba(155,140,255,.1);border:1px solid rgba(155,140,255,.3)"><i data-lucide="clock-3" style="color:var(--violet)"></i></span>
-          <b style="font-size:14px">زمان‌بندی جلسه</b>
-        </div>
-        <p class="small muted">شنبه تا چهارشنبه — پیش‌گشایش <span class="mono" dir="ltr">08:30–09:00</span>، معاملات پیوسته <span class="mono" dir="ltr">09:00–12:30</span>،
-        حراج پایانی (TAL) <span class="mono" dir="ltr">12:45–13:00</span> برای نمادهای سهامی بازار اول و دوم بورس. سیگنال خارج از جلسه، «سیگنال فردا» است.</p>
-      </div>
+    <div class="rule-strip reveal">
+      <div class="rule"><span class="ico ico-amber"><i data-lucide="gauge-circle" class="ic"></i></span><div><b>دامنه نوسان</b><span>سهام ±۳٪ · صندوق طلا ±۱۰٪ · بازار پایه ۱–۳٪</span></div></div>
+      <div class="rule"><span class="ico ico-cyan"><i data-lucide="layers-2" class="ic"></i></span><div><b>حجم مبنا = ۱</b><span>از ۱ دی ۱۴۰۴؛ گره معاملاتی لغو شد</span></div></div>
+      <div class="rule"><span class="ico ico-violet"><i data-lucide="clock-3" class="ic"></i></span><div><b>زمان‌بندی جلسه</b><span>معاملات ۰۹:۰۰–۱۲:۳۰ · حراج پایانی ۱۲:۴۵–۱۳:۰۰</span></div></div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════ کارنامۀ مدل، رویدادها، هشدارها ══════════════════ -->
+<!-- ══════════════════ میز پژوهش ══════════════════ -->
 <section id="scorecard" class="section section-tint">
   <div class="wrap">
-    <div class="reveal" style="max-width:72ch">
-      <span class="eyebrow"><i data-lucide="graduation-cap" style="width:13px;height:13px"></i> میز پژوهش — خودِ مدل هم زیر ذره‌بین</span>
-      <h2 class="h2">کارنامۀ مدل، <span class="grad">تقویم رویدادها</span> و دیده‌بان هشدار</h2>
-      <p class="lead">این بخش ادعای خودِ سامانه را اندازه می‌گیرد: پایداری سیگنال در افق‌های ۱/۳/۵ جلسه‌ای
-        (walk-forward روی تاریخچه، بدون نگاه به آینده)، اتفاقات پیش‌روی نمادها و هشدارهای شرطی شما.
-        کارنامه را پایتون می‌سازد (<span class="mono" dir="ltr">python3 main.py --offline --backtest</span>)؛
-        این‌جا فقط خوانده و رندر می‌شود — نه عدد تازه‌ای، نه میانگین ساختگی.</p>
+    <div class="sec-head reveal">
+      <div class="sec-copy">
+        <span class="eyebrow"><i data-lucide="graduation-cap" class="ic-sm"></i> میز پژوهش</span>
+        <h2 class="h2">کارنامه مدل، <span class="grad">رویدادها</span> و هشدارها</h2>
+        <p class="sec-lead">پایداری سیگنال در افقهای ۱/۳/۵ جلسه بهصورت walk-forward سنجیده می‌شود؛ اعداد ساختگی تولید نمی‌شوند.</p>
+      </div>
     </div>
 
-    <div class="sc-grid reveal" style="margin-top:30px">
-      <div class="glass p-6" style="border-radius:18px" id="sc-card">
-        <div class="row-between" style="margin-bottom:14px">
-          <b style="font-size:14.5px">کارنامۀ مدل — آزمون پایداری سیگنال</b>
+    <div class="sc-grid reveal">
+      <div class="card" id="sc-card">
+        <div class="card-hd">
+          <div class="card-title"><b>آزمون پایداری سیگنال</b></div>
           <span class="chip" id="sc-refresh" role="button" tabindex="0" title="بازخوانی data/model-report.json">بازخوانی</span>
         </div>
-        <div id="sc-body"><div class="sc-empty"><span class="spin"></span> خواندن کارنامه …</div></div>
+        <div class="card-body"><div id="sc-body"><div class="sc-empty"><span class="spin"></span> خواندن کارنامه …</div></div></div>
       </div>
 
-      <div class="col" style="gap:16px">
-        <div class="glass p-6" style="border-radius:18px">
-          <div class="row-between" style="margin-bottom:12px">
-            <b style="font-size:14.5px">تقویم اتفاقات نماد</b>
-            <span class="tiny faint" id="ev-note">—</span>
-          </div>
-          <div class="col" style="gap:9px" id="ev-list"></div>
+      <div class="lab-side">
+        <div class="card">
+          <div class="card-hd"><div class="card-title"><b>تقویم اتفاقات نماد</b></div><span class="tiny faint" id="ev-note">—</span></div>
+          <div class="card-body"><div class="col gap8" id="ev-list"></div></div>
         </div>
-        <div class="glass p-6" style="border-radius:18px">
-          <div class="row-between" style="margin-bottom:10px">
-            <b style="font-size:14.5px">هشدار شرطی برای تلگرام</b>
-            <span class="tiny faint">محلی · بدون سرور</span>
+        <div class="card">
+          <div class="card-hd"><div class="card-title"><b>هشدار شرطی</b></div><span class="tiny faint">محلی · بدون سرور</span></div>
+          <div class="card-body">
+            <p class="tiny muted alert-hint">نمونه: <span class="mono" dir="ltr">فولاد ظرفیت &gt; 60</span> — پس از هر اسکن ارزیابی می‌شود.</p>
+            <div class="alert-form"><input id="alert-add" placeholder="مثلاً: وبملت قدرت خریدار > 1.4" aria-label="شرط هشدار" /><button class="btn-mini" id="alert-add-btn"><span>افزودن</span></button></div>
+            <div class="col gap8" id="alert-list"></div>
+            <div class="col gap8" id="alert-fired"></div>
           </div>
-          <p class="tiny muted" style="margin:0 0 10px">شرط را فارسی بنویسید — مثال:
-            <span class="mono" dir="ltr">وبملت قدرت خریدار &gt; 1.4</span> یا
-            <span class="mono" dir="ltr">هر نماد حجم مشکوک ≥ 2.5</span>. پس از هر اسکن ارزیابی می‌شود؛
-            متنِ آماده را در تلگرام بازنشر می‌کنید (کلید بات هیچ‌جا ذخیره نمی‌شود).</p>
-          <div class="row alert-form" style="gap:8px">
-            <input id="alert-add" placeholder="مثلاً: فولاد ظرفیت > 60" aria-label="شرط هشدار" />
-            <button class="btn-mini" id="alert-add-btn"><span>افزودن</span></button>
-          </div>
-          <div class="col" style="gap:8px;margin-top:12px" id="alert-list"></div>
-          <div class="col" style="gap:8px;margin-top:10px" id="alert-fired"></div>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-
-<!-- ══════════════════ خروجی ══════════════════ -->
+<!-- ══════════════════ ترمینال و خروجی ══════════════════ -->
 <section id="output" class="section section-tint">
   <div class="wrap">
-    <div class="reveal row-between">
-      <div style="max-width:66ch">
-        <span class="eyebrow"><i data-lucide="square-terminal" style="width:13px;height:13px"></i> خروجی، لاگ و دستورات</span>
+    <div class="sec-head reveal">
+      <div class="sec-copy">
+        <span class="eyebrow"><i data-lucide="square-terminal" class="ic-sm"></i> خروجی و لاگ</span>
         <h2 class="h2">ترمینال قابل‌تایپ و <span class="mono grad" dir="ltr">signals.json</span></h2>
-        <p class="lead">دستور بزنید: <span class="mono" dir="ltr">top 5</span> · <span class="mono" dir="ltr">filter power&gt;1.3</span> · <span class="mono" dir="ltr">sector شیمیایی</span> · <span class="mono" dir="ltr">explain فولاد</span> · <span class="mono" dir="ltr">export csv</span></p>
+        <div class="cmd-line mono" dir="ltr"><span>top 5</span><span>filter power&gt;1.3</span><span>sector شیمیایی</span><span>explain فولاد</span><span>export csv</span></div>
       </div>
-      <div class="row" style="gap:8px">
-        <button class="btn-mini" id="json-copy"><i data-lucide="clipboard-copy" style="width:12px;height:12px"></i><span>کپی JSON</span></button>
-        <button class="btn-mini" id="json-dl" disabled><i data-lucide="download" style="width:12px;height:12px"></i><span>دانلود signals.json</span></button>
+      <div class="row gap8">
+        <button class="btn-mini" id="json-copy"><i data-lucide="clipboard-copy" class="ic-sm"></i><span>کپی JSON</span></button>
+        <button class="btn-mini" id="json-dl" disabled><i data-lucide="download" class="ic-sm"></i><span>دانلود signals.json</span></button>
       </div>
     </div>
-    <div class="grid g2 reveal" style="margin-top:26px;align-items:start">
+    <div class="grid g2 reveal term-grid">
       <div class="term">
         <div class="term-hd">
-          <span class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></span>
+          <span class="dots"><i></i><i></i><i></i></span>
           <span class="t">live@tabloradar → TSETMC</span>
-          <span class="t" style="margin-inline-start:auto" id="term-hint">help ⏎</span>
+          <span class="t term-hint" id="term-hint">help ⏎</span>
         </div>
         <div class="termbody" id="term-body" role="log" aria-live="polite"></div>
         <div class="term-in">
@@ -474,10 +356,7 @@
         </div>
       </div>
       <div class="term">
-        <div class="term-hd">
-          <i data-lucide="file-json" style="width:14px;height:14px;color:var(--green)"></i>
-          <span class="t">signals.json — ساختار خروجی موتور</span>
-        </div>
+        <div class="term-hd"><i data-lucide="file-json" class="ic-sm ink-green"></i><span class="t">signals.json — خروجی موتور</span></div>
         <div class="jsonbody" id="json-body"></div>
       </div>
     </div>
@@ -487,20 +366,8 @@
 <!-- ══════════════════ فوتر ══════════════════ -->
 <footer class="footer">
   <div class="wrap footer-in">
-    <div class="row" style="gap:11px">
-      <span class="brand-mark"><i data-lucide="radar" style="width:17px;height:17px;color:var(--green)"></i></span>
-      <div>
-        <b style="font-size:15px">تابلو<span class="grad">رادار</span></b>
-        <p class="tiny faint" style="margin:2px 0 0">مهندسی کمی برای تالار بورس تهران — MIT</p>
-      </div>
-    </div>
-    <div class="tags">
-      <span>TSETMC</span><span>BrsApi</span><span>ES modules</span><span>Python 3.11</span><span>node --test</span>
-    </div>
-    <p class="tiny faint" style="max-width:44ch;margin:0" title="همه قیمت‌ها به ریال است (۱ تومان = ۱۰ ریال)">
-      صرفاً ابزار تحلیل داده؛ توصیه سرمایه‌گذاری نیست و هیچ‌یک از خروجی‌ها مسئولیت تصمیم معاملاتی را بر عهده نمی‌گیرد.
-      <span class="mono">قیمت‌ها: ریال</span>
-    </p>
+    <div class="brand brand-foot"><span class="brand-mark"><i data-lucide="radar" class="ic"></i></span><span>تابلو<span class="grad">رادار</span></span></div>
+    <p class="tiny faint">ابزار تحلیل داده؛ توصیه سرمایه‌گذاری نیست. <span class="mono">قیمت‌ها: ریال</span> · MIT</p>
   </div>
 </footer>
 
@@ -508,30 +375,25 @@
 <div class="drawer-scrim" id="drawer-scrim"></div>
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="تنظیمات تابلورادار">
   <div class="drawer-in">
-    <div class="row-between">
-      <b style="font-size:15px">تنظیمات</b>
-      <button class="btn-mini" id="drawer-close"><i data-lucide="x" style="width:13px;height:13px"></i><span>بستن</span></button>
-    </div>
+    <div class="row-between"><b>تنظیمات</b><button class="btn-mini" id="drawer-close"><i data-lucide="x" class="ic-sm"></i><span>بستن</span></button></div>
     <label class="switch"><input type="checkbox" id="s-toman" /> نمایش قیمت‌ها به تومان</label>
     <label class="switch"><input type="checkbox" id="s-fadigits" /> ارقام فارسی</label>
-    <label class="switch"><input type="checkbox" id="s-autorefresh" checked /> بروزرسانی خودکار هر ۶۰ ثانیه</label>
+    <label class="switch"><input type="checkbox" id="s-autorefresh" checked /> به‌روزرسانی خودکار</label>
     <label class="field"><span>بازه واکشی (ثانیه)</span><input type="number" id="s-interval" value="60" min="15" step="15" /></label>
-    <label class="field"><span>تعداد نماد برای واکشی تاریخچه</span><input type="number" id="s-histn" value="40" min="0" max="120" /></label>
-    <p class="tiny faint" style="margin:0">
-      تابلورادار هیچ داده‌ای را در سرور خود ذخیره نمی‌کند؛ تنظیمات فقط در <span class="mono" dir="ltr">localStorage</span> مرورگر شما می‌ماند.
-    </p>
+    <label class="field"><span>تعداد نماد برای تاریخچه</span><input type="number" id="s-histn" value="40" min="0" max="120" /></label>
+    <p class="tiny faint drawer-note">تنظیمات فقط در <span class="mono" dir="ltr">localStorage</span> مرورگر شما میماند.</p>
   </div>
 </aside>
 
 <div class="toast" id="toast" role="status" aria-live="polite"><div></div></div>
 
-<!-- ══════════════════ پنجرۀ مقایسۀ دو نماد ══════════════════ -->
+<!-- ══════════════════ پنجره مقایسه ══════════════════ -->
 <div class="cmp-scrim" id="cmp-scrim"></div>
-<aside class="cmp-modal" id="cmp-modal" role="dialog" aria-modal="true" aria-label="مقایسۀ دو نماد">
+<aside class="cmp-modal" id="cmp-modal" role="dialog" aria-modal="true" aria-label="مقایسه دو نماد">
   <div class="codewin-hd">
-    <i data-lucide="columns-2" style="width:15px;height:15px;color:var(--cyan)"></i>
-    <span class="t">مقایسۀ دو نماد — سنجه به سنجه، با برندهٔ هر سطر</span>
-    <button class="btn-mini" id="cmp-close" style="margin-inline-start:auto"><span>بستن ✕</span></button>
+    <i data-lucide="columns-2" class="ic-sm ink-cyan"></i>
+    <span class="t">مقایسه دو نماد — سنجه به سنجه</span>
+    <button class="btn-mini" id="cmp-close"><span>بستن ✕</span></button>
   </div>
   <div class="cmp-body" id="cmp-body"></div>
 </aside>
