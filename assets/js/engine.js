@@ -249,8 +249,15 @@ export function vetoCheck(inst, m, rules = DEFAULT_RULES) {
       (isRight && !rules.includeRights) || inst.kind === 'index' || inst.kind === 'other') {
     push('universe', `${inst.kind === 'stock' ? inst.board : inst.kind} · ${inst.cs}`);
   }
-  if (has(inst.tval) && inst.tval < rules.minValue) {
-    push('liq', `ارزش معاملات ${fmtNum(inst.tval / 1e9, 1)} میلیارد ریال < ${fmtNum(rules.minValue / 1e9, 0)} میلیارد`);
+  /* نقدشوندگی پایدار: میانگین ۳۰روزهٔ ارزش معاملات (میانگین حجم × قیمت میانگین)؛
+   * tval تک‌روزه فقط وقتی میانگین در دسترس نیست — تا وتو با یک روز پرحجم/بی‌حجم نلرزد. */
+  const px = has(m.vwap) && m.vwap > 0 ? m.vwap : inst.pl;
+  const avgVal = Number.isFinite(inst.avgVal) ? inst.avgVal : NaN;
+  const liqValue = has(avgVal) && avgVal > 0 && has(px) ? avgVal * px : inst.tval;
+  if (has(liqValue) && liqValue < rules.minValue) {
+    push('liq', has(avgVal) && has(px)
+      ? `میانگین ارزش معاملات ۳۰روزه ${fmtNum(liqValue / 1e9, 1)} میلیارد ریال < ${fmtNum(rules.minValue / 1e9, 0)} میلیارد`
+      : `ارزش معاملات ${fmtNum(inst.tval / 1e9, 1)} میلیارد ریال < ${fmtNum(rules.minValue / 1e9, 0)} میلیارد`);
   }
   if (m.sellQueueLocked) push('sellQueue', `صف فروش ${fmtNum(m.sellQueue)} برگه در کف مجاز`);
   if (has(m.freeFloat) && m.freeFloat < rules.minFloat) {
@@ -274,7 +281,7 @@ function rsiScore(v) {
   return 40;                       // کف احتمالی، اما بدون تایید
 }
 
-export function factorScores(inst, m, rules = DEFAULT_RULES) {
+export function factorScores(inst, m, rules = DEFAULT_RULES, ctx = {}) {
   const f = { detail: {} };
 
   /* ── تابلو و جریان پول ── */
@@ -292,29 +299,35 @@ export function factorScores(inst, m, rules = DEFAULT_RULES) {
     volumeShock: m.volumeShock, k2k: m.k2k?.fa,
   };
 
-  /* ── کوتاه‌مدت (با اعمال ظرفیت رشد تا سقف مجاز) ── */
+  /* ── کوتاه‌مدت (ظرفیت سقف + قدرت نسبی صدکی در مقطع بازار) ── */
   const emaGap = has(m.ema9) && has(m.ema21) && m.ema21 ? (m.ema9 - m.ema21) / m.ema21 * 100 : NaN;
   let shortRaw = weighted([
-    { v: rsiScore(m.rsi), w: .30 },
-    { v: has(emaGap) ? sig(emaGap, 0, 3.2) : null, w: .25 },
-    { v: has(m.dayRangePos) ? m.dayRangePos * 100 : null, w: .15 },
-    { v: has(m.ret5) ? sig(m.ret5, 0, .55) : null, w: .30 },
+    { v: rsiScore(m.rsi), w: .25 },
+    { v: has(emaGap) ? sig(emaGap, 0, 3.2) : null, w: .22 },
+    { v: has(m.dayRangePos) ? m.dayRangePos * 100 : null, w: .12 },
+    { v: has(m.ret5) ? sig(m.ret5, 0, .55) : null, w: .26 },
+    /* قدرت نسبی: رتبهٔ صدکی بازده ۲۰ جلسه در مقطع اسکن — روند، نه فقط حرکت مطلق */
+    { v: has(ctx.rsPct) ? sig(ctx.rsPct, 55, .05) : null, w: .15 },
   ]);
   if (has(shortRaw) && has(m.capacity)) shortRaw = shortRaw * (0.55 + 0.45 * m.capacity);
   f.short = has(shortRaw) ? clamp(shortRaw) : null;
-  f.detail.short = { rsi: m.rsi, emaGap, dayRangePos: m.dayRangePos, ret5: m.ret5, capacity: m.capacity };
+  f.detail.short = { rsi: m.rsi, emaGap, dayRangePos: m.dayRangePos, ret5: m.ret5,
+    capacity: m.capacity, rsPct: has(ctx.rsPct) ? ctx.rsPct : NaN };
 
   /* ── میان‌مدت ── */
   const smaGap = has(m.sma20) && has(m.sma50) && m.sma50 ? (m.sma20 - m.sma50) / m.sma50 * 100 : NaN;
   const macdRising = has(m.macdHist) && has(m.macdHistPrev) ? (m.macdHist > m.macdHistPrev ? 1 : 0) : NaN;
   const priceVsSma = has(inst.pl) && has(m.sma20) && m.sma20 ? (inst.pl - m.sma20) / m.sma20 * 100 : NaN;
   f.mid = weighted([
-    { v: has(smaGap) ? sig(smaGap, 0, 2.2) : null, w: .30 },
-    { v: has(m.macdHist) ? sig(m.macdHist / (inst.pl || 1) * 100, 0, 3.5) : null, w: .25 },
-    { v: has(priceVsSma) ? sig(priceVsSma, 0, 1.6) : null, w: .25 },
-    { v: has(m.slope20) ? sig(m.slope20, 0, 9) : null, w: .20 },
+    { v: has(smaGap) ? sig(smaGap, 0, 2.2) : null, w: .26 },
+    { v: has(m.macdHist) ? sig(m.macdHist / (inst.pl || 1) * 100, 0, 3.5) : null, w: .21 },
+    { v: has(priceVsSma) ? sig(priceVsSma, 0, 1.6) : null, w: .21 },
+    { v: has(m.slope20) ? sig(m.slope20, 0, 9) : null, w: .17 },
+    /* چرخش صناعی: رتبهٔ صدکی میانگین تغییر صنعت نماد در مقطع بازار */
+    { v: has(ctx.sectorPct) ? sig(ctx.sectorPct, 50, .045) : null, w: .15 },
   ]);
-  f.detail.mid = { smaGap, macdHist: m.macdHist, macdRising, priceVsSma, slope20: m.slope20 };
+  f.detail.mid = { smaGap, macdHist: m.macdHist, macdRising, priceVsSma, slope20: m.slope20,
+    sectorPct: has(ctx.sectorPct) ? ctx.sectorPct : NaN };
 
   /* ── بلندمدت و بنیادی ── */
   const vs200 = has(inst.pl) && has(m.sma200) && m.sma200 ? (inst.pl - m.sma200) / m.sma200 * 100 : NaN;
@@ -511,6 +524,46 @@ export function analyzeInstrument(inst, rules = DEFAULT_RULES, weights = DEFAULT
 
 /* ───────────────────── ۷. سطح بازار: رتبه‌بندی، نبض، صنایع ───────────────────── */
 
+/** رتبهٔ صدکی v در آرایهٔ vals (با نیم‌تخصیص تساوی‌ها) — null اگر مقطع کوچک باشد */
+function percentileOf(v, sortedVals) {
+  if (!sortedVals || sortedVals.length < 10 || !has(v)) return NaN;
+  let lo = 0, eq = 0;
+  for (const x of sortedVals) { if (x < v) lo++; else if (x === v) eq++; }
+  return ((lo + eq / 2) / sortedVals.length) * 100;
+}
+
+/**
+ * رژیم بازار از خود مقطع اسکن (بدون وابستگی به تاریخچهٔ شاخص که روی CDN نیست):
+ * ترکیب عرض بازار (نسبت نمادهای مثبت) و میانگین هم‌وزن تغییر.
+ * ضریب رژیم فقط «رقیق‌کننده» است: خنثی/صعودی = ۱٫۰؛ ریزشی تا ۰٫۷۵ —
+ * یعنی امتیاز ۸۵ در ریزش عمومی، دیگر «خرید قوی» نیست.
+ */
+export function marketRegime(insts = []) {
+  let up = 0, down = 0, n = 0, chgSum = 0;
+  for (const inst of insts || []) {
+    if (inst.kind !== 'stock') continue;
+    const ref = Number.isFinite(inst.pc) && inst.pc ? inst.pc : inst.py;
+    const chg = ref && Number.isFinite(inst.pl) ? (inst.pl - ref) / ref * 100 : NaN;
+    if (!has(chg)) continue;
+    n++; chgSum += chg;
+    if (chg > 0.05) up++; else if (chg < -0.05) down++;
+  }
+  const breadth = (up + down) ? up / (up + down) : NaN;
+  const equalChg = n ? chgSum / n : NaN;
+  const bScore = has(breadth) ? sig(breadth, 0.5, 6) : 50;
+  const cScore = has(equalChg) ? sig(equalChg, 0, 1.1) : 50;
+  const score = clamp(0.55 * bScore + 0.45 * cScore);
+  let multiplier = 1.0;
+  if (score < 30) multiplier = 0.75 + (score / 30) * 0.13;        // ۰٫۷۵ تا ۰٫۸۸
+  else if (score < 50) multiplier = 0.88 + ((score - 30) / 20) * 0.12; // ۰٫۸۸ تا ۱٫۰
+  const state = score < 30 ? 'bear' : score < 50 ? 'weak' : 'neutral';
+  const fa = { bear: 'ریزشی', weak: 'ضعیف', neutral: 'خنثی/صعودی' }[state];
+  return {
+    breadth, equalChg, score: +score.toFixed(0), state, fa,
+    multiplier: +multiplier.toFixed(3), sampled: n,
+  };
+}
+
 export function rankInstruments(list, opts = {}) {
   const rules = { ...DEFAULT_RULES, ...opts.rules };
   const weights = { ...DEFAULT_WEIGHTS, ...opts.weights };
@@ -524,12 +577,51 @@ export function rankInstruments(list, opts = {}) {
     else rows.push(r);
   }
 
+  /* گذر دوم — دو سنجهٔ مقطعی روی ردیف‌های رتبه‌بندی‌شده:
+   *  ۱) قدرت نسبی: صدک ret20 نماد در کل مقطع (روند نسبت به بازار، نه مطلق)
+   *  ۲) چرخش صناعی: صدک میانگین تغییر صنعت نماد در میان صنایع */
+  const rets = rows.map(r => r.metrics.ret20).filter(Number.isFinite).sort((a, b) => a - b);
+  const secSum = new Map();
+  for (const r of rows) {
+    if (r.inst.kind !== 'stock') continue;
+    const chg = chgOf(r.inst);
+    if (!has(chg)) continue;
+    const rec = secSum.get(r.inst.cs) || { sum: 0, n: 0 };
+    rec.sum += chg; rec.n++;
+    secSum.set(r.inst.cs, rec);
+  }
+  const secAvgs = [...secSum.values()].map(v => v.sum / v.n).sort((a, b) => a - b);
+  const secAvgOf = new Map([...secSum].map(([k, v]) => [k, v.n ? v.sum / v.n : NaN]));
+  for (const r of rows) {
+    const ctx = {};
+    ctx.rsPct = percentileOf(r.metrics.ret20, rets);
+    const secAvg = secAvgOf.get(r.inst.cs);
+    ctx.sectorPct = secAvgs.length >= 5 ? percentileOf(secAvg, secAvgs) : NaN;
+    if (!has(ctx.rsPct) && !has(ctx.sectorPct)) continue;
+    /* بازامتیازدهی ارزان: فقط عوامل/امتیاز/نقشه — سنجه‌ها دوباره محاسبه نمی‌شوند */
+    r.factors = factorScores(r.inst, r.metrics, rules, ctx);
+    r.score = scoreInstrument(r.inst, r.metrics, r.factors, weights);
+    r.plan = { ...signalPlan(r.inst, r.metrics, rules), horizon: horizonOf(r.factors) };
+    r.tech = { short: r.factors.short, mid: r.factors.mid, long: r.factors.long };
+  }
+
   rows.sort((a, b) => {
     const s = (b.score.total ?? -1) - (a.score.total ?? -1);
     return s !== 0 ? s : (b.score.confidence ?? 0) - (a.score.confidence ?? 0);
   });
 
-  return { rows, vetoed, vetoCounts, scanned: list.length, rules, weights };
+  /* ضریب رژیم بازار: در رژیم ریزش عمومی، امتیازهای مطلق رقیق می‌شوند تا
+   * «خرید قوی» در روزی که همه‌چیز قرمز است صادر نشود. رتبه‌بندی نسبی دست‌نخورده می‌ماند. */
+  const regime = marketRegime(list);
+  if (regime.multiplier < 1) {
+    for (const r of rows) {
+      if (!has(r.score.total)) continue;
+      r.score.total = +(r.score.total * regime.multiplier).toFixed(1);
+      r.score.grade = gradeOf(r.score.total, r.score.confidence);
+    }
+  }
+
+  return { rows, vetoed, vetoCounts, scanned: list.length, rules, weights, regime };
 }
 
 /** نبض بازار: عمق، جریان پول، صف‌ها، دما */

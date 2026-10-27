@@ -16,7 +16,7 @@ import { buildCompare, compareHtml, drawCompareSpark } from './compare.js';
 import * as U from './ui.js';
 
 const S = {
-  insts: [], rows: [], vetoed: [], pulse: null, sectors: [],
+  insts: [], rows: [], vetoed: [], pulse: null, sectors: [], regime: null,
   weights: { ...DEFAULT_WEIGHTS }, rules: { ...DEFAULT_RULES },
   sort: { key: 'score', dir: -1 },
   view: 'table', filter: { q: '', sector: '', market: '', top: 10, limitUp: false, inflow: false, queueFree: false },
@@ -108,7 +108,7 @@ function toggleCmp(sym) {
 }
 const detailOpts = () => ({
   watchlist: S.watch, onWatch: toggleWatch, events: S.events,
-  cmp: S.cmp, onCmp: toggleCmp,
+  cmp: S.cmp, onCmp: toggleCmp, regime: S.regime,
 });
 
 /** پنل‌های زندهٔ CDN (دفتر سفارش + شناسنامهٔ رسمی) برای نماد انتخاب‌شده — مستقل از اسکن */
@@ -278,6 +278,7 @@ async function scan({ manual = false, withHistory = true } = {}) {
 function recompute() {
   const out = rankInstruments(S.insts, { rules: S.rules, weights: S.weights });
   S.rows = out.rows; S.vetoed = out.vetoed; S.vetoCounts = out.vetoCounts;
+  S.regime = out.regime;
   S.pulse = marketPulse(S.insts, S.rows.slice(0, 10));
   S.sectors = sectorAggregates(S.insts);
   const sel = S.selected && S.rows.find(r => r.inst.l18 === S.selected);
@@ -298,7 +299,7 @@ function renderAll() {
     : '—';
 
   U.renderSourceChips(S.meta);
-  U.renderPulse(S.pulse);
+  U.renderPulse(S.pulse, S.regime);
   U.renderTicker(visibleRowsForTicker());
   U.renderTable(filteredRows(), { sortKey: S.sort.key, sortDir: S.sort.dir, onSort: setSort, events: S.events });
   U.renderHeat(S.sectors, pickSector, S.filter.sector);
@@ -468,7 +469,7 @@ function renderJSON() {
   if (S.insts.some(i => !Number.isFinite(i.sectorPE))) missing.push('sectorPE');
   if (S.insts.some(i => !(i.book || []).length)) missing.push('orderBook');
   const payload = {
-    tool: 'TabloRadar v4.2',
+    tool: 'TabloRadar v4.3',
     generated_at: new Date().toISOString(),
     tehran_calendar: tehranDate(),
     source: S.meta.source || '—',
@@ -477,6 +478,11 @@ function renderJSON() {
     simulated_fields: S.meta.kind === 'simulated' ? (S.meta.simulatedFields?.simulated || []) : [],
     live: !!S.meta.live,
     market_rules: { price_limit_pct: 3, base_volume: 1, session: '09:00-12:30 + TAL 12:45-13:00' },
+    market_regime: S.regime ? {
+      score: S.regime.score, state: S.regime.state, fa: S.regime.fa,
+      multiplier: S.regime.multiplier, breadth: rnd(S.regime.breadth, 3),
+      equal_chg_pct: rnd(S.regime.equalChg, 2), sampled: S.regime.sampled,
+    } : null,
     weights: S.weights, rules: S.rules,
     scanned: S.insts.length, vetoed_count: S.vetoed.length, vetoCounts: S.vetoCounts,
     missing,

@@ -31,9 +31,18 @@ def veto_check(inst, m: dict, rules: C.Rules) -> tuple[bool, list[str], list[str
         codes.append("universe")
         fa.append(f"{inst.board if inst.kind.startswith('stock') else inst.kind} · {inst.sector}")
 
-    if fin(inst.tval) and inst.tval < rules.min_value:
-        codes.append("liq")
-        fa.append(f"ارزش معاملات {inst.tval / 1e9:,.1f} میلیارد ریال < {rules.min_value / 1e9:,.0f} میلیارد")
+    # نقدشوندگی پایدار: میانگین ۳۰روزهٔ ارزش معاملات (میانگین حجم × قیمت میانگین)؛
+    # tval تک‌روزه فقط در نبود میانگین — تا وتو با یک روز پرحجم/بی‌حجم نلرزد.
+    px = m["vwap"] if (fin(m.get("vwap")) and m["vwap"] > 0) else inst.pl
+    avg_val = inst.avg_val if fin(inst.avg_val) else NAN
+    liq_value = (avg_val * px) if (fin(avg_val) and avg_val > 0 and fin(px)) else inst.tval
+    if fin(liq_value) and liq_value < rules.min_value:
+        if fin(avg_val) and fin(px):
+            codes.append("liq")
+            fa.append(f"میانگین ارزش معاملات ۳۰روزه {liq_value / 1e9:,.1f} میلیارد ریال < {rules.min_value / 1e9:,.0f} میلیارد")
+        else:
+            codes.append("liq")
+            fa.append(f"ارزش معاملات {inst.tval / 1e9:,.1f} میلیارد ریال < {rules.min_value / 1e9:,.0f} میلیارد")
 
     if m.get("sell_queue_locked"):
         codes.append("sellQueue")
@@ -80,9 +89,12 @@ def rsi_score(v: float) -> float:
     return 40.0
 
 
-def factor_scores(inst, m: dict, rules: C.Rules) -> dict[str, Any]:
+def factor_scores(inst, m: dict, rules: C.Rules, ctx: dict | None = None) -> dict[str, Any]:
     f: dict[str, Any] = {"detail": {}}
     w = C.SUBWEIGHTS
+    ctx = ctx or {}
+    rs_pct = ctx.get("rs_pct", NAN)
+    sector_pct = ctx.get("sector_pct", NAN)
 
     k2k = C.K2K_SCORE.get(m["k2k"]["code"], NAN)
     f["tablo"] = _weighted([
@@ -101,12 +113,14 @@ def factor_scores(inst, m: dict, rules: C.Rules) -> dict[str, Any]:
         (sig(ema_gap, 0.0, 3.2), w["short"]["ema"]),
         (m["day_range_pos"] * 100 if fin(m["day_range_pos"]) else NAN, w["short"]["range"]),
         (sig(m["ret5"], 0.0, 0.55), w["short"]["ret5"]),
+        # قدرت نسبی: رتبهٔ صدکی بازده ۲۰ جلسه در مقطع اسکن
+        (sig(rs_pct, 55.0, 0.05), w["short"]["rs"]),
     ])
     if fin(short_raw) and fin(m["capacity"]):
         short_raw *= 0.55 + 0.45 * m["capacity"]
     f["short"] = clamp(short_raw) if fin(short_raw) else NAN
     f["detail"]["short"] = {"rsi": m["rsi"], "ema_gap": ema_gap, "day_range_pos": m["day_range_pos"],
-                            "ret5": m["ret5"], "capacity": m["capacity"]}
+                            "ret5": m["ret5"], "capacity": m["capacity"], "rs_pct": rs_pct}
 
     sma_gap = ((m["sma20"] - m["sma50"]) / m["sma50"] * 100) if (fin(m["sma20"]) and fin(m["sma50"]) and m["sma50"]) else NAN
     price_vs_sma = ((inst.pl - m["sma20"]) / m["sma20"] * 100) if (fin(inst.pl) and fin(m["sma20"]) and m["sma20"]) else NAN
@@ -115,9 +129,11 @@ def factor_scores(inst, m: dict, rules: C.Rules) -> dict[str, Any]:
         (sig(m["macd_hist"] / inst.pl * 100, 0.0, 3.5) if (fin(m["macd_hist"]) and inst.pl) else NAN, w["mid"]["macd"]),
         (sig(price_vs_sma, 0.0, 1.6), w["mid"]["vs_sma20"]),
         (sig(m["slope20"], 0.0, 9.0), w["mid"]["slope"]),
+        # چرخش صناعی: رتبهٔ صدکی میانگین تغییر صنعت نماد در میان صنایع
+        (sig(sector_pct, 50.0, 0.045), w["mid"]["sector"]),
     ])
     f["detail"]["mid"] = {"sma_gap": sma_gap, "macd_hist": m["macd_hist"], "price_vs_sma": price_vs_sma,
-                          "slope20": m["slope20"]}
+                          "slope20": m["slope20"], "sector_pct": sector_pct}
 
     vs200 = ((inst.pl - m["sma200"]) / m["sma200"] * 100) if (fin(inst.pl) and fin(m["sma200"]) and m["sma200"]) else NAN
     slope200 = ((m["sma200"] - m["sma200_prev"]) / m["sma200_prev"] * 100) if (
@@ -285,10 +301,56 @@ def explain(inst, m: dict) -> list[dict[str, str]]:
 
 
 # ───────────────────────── سطح بازار ─────────────────────────
-def analyze(inst, rules: C.Rules, weights: dict[str, float]) -> dict[str, Any]:
+def _percentile_of(v: float, sorted_vals: list[float]) -> float:
+    """رتبهٔ صدکی v با نیم‌تخصیص تساوی‌ها؛ مقطع کوچک (<۱۰) → NAN (آینهٔ percentileOf در engine.js)"""
+    if not sorted_vals or len(sorted_vals) < 10 or not fin(v):
+        return NAN
+    lo = sum(1 for x in sorted_vals if x < v)
+    eq = sum(1 for x in sorted_vals if x == v)
+    return (lo + eq / 2) / len(sorted_vals) * 100
+
+
+def market_regime(instruments) -> dict[str, Any]:
+    """رژیم بازار از خود مقطع اسکن: عرض بازار + میانگین هم‌وزن تغییر.
+    ضریب فقط رقیق‌کننده است: خنثی/صعودی = ۱٫۰؛ ریزشی تا ۰٫۷۵ (آینهٔ marketRegime در engine.js)."""
+    up = down = n = 0
+    chg_sum = 0.0
+    for inst in instruments or []:
+        if inst.kind != "stock":
+            continue
+        ref = inst.pc if (fin(inst.pc) and inst.pc) else inst.py
+        chg = ((inst.pl - ref) / ref * 100) if (fin(ref) and ref and fin(inst.pl)) else NAN
+        if not fin(chg):
+            continue
+        n += 1
+        chg_sum += chg
+        if chg > 0.05:
+            up += 1
+        elif chg < -0.05:
+            down += 1
+    breadth = (up / (up + down)) if (up + down) else NAN
+    equal_chg = (chg_sum / n) if n else NAN
+    b_score = sig(breadth, 0.5, 6.0) if fin(breadth) else 50.0
+    c_score = sig(equal_chg, 0.0, 1.1) if fin(equal_chg) else 50.0
+    score = clamp(0.55 * b_score + 0.45 * c_score)
+    if score < 30:
+        multiplier = 0.75 + (score / 30) * 0.13
+        state = "bear"
+    elif score < 50:
+        multiplier = 0.88 + ((score - 30) / 20) * 0.12
+        state = "weak"
+    else:
+        multiplier = 1.0
+        state = "neutral"
+    fa = {"bear": "ریزشی", "weak": "ضعیف", "neutral": "خنثی/صعودی"}[state]
+    return {"breadth": breadth, "equal_chg": equal_chg, "score": round(score),
+            "state": state, "fa": fa, "multiplier": round(multiplier, 3), "sampled": n}
+
+
+def analyze(inst, rules: C.Rules, weights: dict[str, float], ctx: dict | None = None) -> dict[str, Any]:
     m = metrics(inst)
     is_veto, codes, fa = veto_check(inst, m, rules)
-    f = factor_scores(inst, m, rules)
+    f = factor_scores(inst, m, rules, ctx)
     score = score_instrument(f, weights)
     plan = None
     if not is_veto:
@@ -317,10 +379,49 @@ def rank(instruments, rules: C.Rules | None = None, weights: dict | None = None,
             if c in counts:
                 counts[c] += 1
         (vetoed if r["veto"]["vetoed"] else rows).append(r)
+
+    # گذر دوم — قدرت نسبی (صدک ret20) و چرخش صناعی (صدک میانگین تغییر صنعت)
+    rets = sorted(r["metrics"]["ret20"] for r in rows if fin(r["metrics"].get("ret20")))
+    sec_sum: dict[str, dict] = {}
+    for r in rows:
+        if r["inst"].kind != "stock":
+            continue
+        chg = chg_of(r["inst"])
+        if not fin(chg):
+            continue
+        rec = sec_sum.setdefault(r["inst"].sector, {"sum": 0.0, "n": 0})
+        rec["sum"] += chg
+        rec["n"] += 1
+    sec_avgs = sorted(v["sum"] / v["n"] for v in sec_sum.values() if v["n"])
+    sec_avg_of = {k: (v["sum"] / v["n"] if v["n"] else NAN) for k, v in sec_sum.items()}
+    for r in rows:
+        ctx = {"rs_pct": _percentile_of(r["metrics"].get("ret20"), rets)}
+        sec_avg = sec_avg_of.get(r["inst"].sector, NAN)
+        ctx["sector_pct"] = _percentile_of(sec_avg, sec_avgs) if len(sec_avgs) >= 5 else NAN
+        if not fin(ctx["rs_pct"]) and not fin(ctx["sector_pct"]):
+            continue
+        m = r["metrics"]
+        r["factors"] = factor_scores(r["inst"], m, rules, ctx)
+        r["score"] = score_instrument(r["factors"], weights)
+        plan = signal_plan(r["inst"], m, rules)
+        if plan is not None:
+            plan["horizon"] = horizon_of(r["factors"])
+        r["plan"] = plan
+
     rows.sort(key=lambda r: (-(r["score"]["total"] if r["score"]["total"] is not None else -1),
                              -(r["score"]["confidence"] or 0)))
+
+    # ضریب رژیم بازار — رتبهٔ نسبی دست‌نخورده؛ فقط امتیاز مطلق در رژیم ریزش رقیق می‌شود
+    regime = market_regime(instruments)
+    if regime["multiplier"] < 1:
+        for r in rows:
+            if r["score"]["total"] is None:
+                continue
+            r["score"]["total"] = round(r["score"]["total"] * regime["multiplier"], 1)
+            r["score"]["grade"] = grade_of(r["score"]["total"], r["score"]["confidence"])
+
     return {"rows": rows, "top": rows[:top], "vetoed": vetoed, "veto_counts": counts,
-            "scanned": len(instruments), "rules": rules, "weights": weights}
+            "scanned": len(instruments), "rules": rules, "weights": weights, "regime": regime}
 
 
 def market_pulse(instruments) -> dict[str, Any]:

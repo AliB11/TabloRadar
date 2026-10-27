@@ -40,10 +40,10 @@ WEIGHTS = {"tablo": 30, "short": 20, "mid": 20, "long": 15, "risk": 15}
 FACTOR_KEYS = ("tablo", "short", "mid", "long", "risk")
 SUBWEIGHTS = {
     "tablo": {"buyer_power": 0.30, "net_real": 0.25, "obi": 0.15, "shock": 0.15, "k2k": 0.15},
-    "mid": {"sma_gap": 0.30, "macd": 0.25, "vs_sma20": 0.25, "slope": 0.20},
+    "mid": {"sma_gap": 0.26, "macd": 0.21, "vs_sma20": 0.21, "slope": 0.17, "sector": 0.15},
     "long": {"vs_sma200": 0.35, "slope200": 0.20, "pe": 0.25, "turnover": 0.20},
     "risk": {"liquidity": 0.35, "queue": 0.25, "float": 0.20, "vol": 0.20},
-    "short": {"rsi": 0.30, "ema": 0.25, "range": 0.15, "ret5": 0.30},
+    "short": {"rsi": 0.25, "ema": 0.22, "range": 0.12, "ret5": 0.26, "rs": 0.15},
 }
 K2K_SCORE = {"legal2real": 100.0, "realCollect": 78.0, "none": 50.0, "realExit": 22.0, "real2legal": 5.0}
 

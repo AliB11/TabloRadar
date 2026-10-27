@@ -48,13 +48,16 @@ export function renderSourceChips(meta) {
 }
 const tehranStampShort = at => (at ? `${tehranTime(at)}` : '—');
 
-export function renderPulse(p) {
+export function renderPulse(p, regime = null) {
   const grid = $('#pulse-grid'); if (!grid) return;
   const t = p.temperature;
   const breadth = Number.isFinite(p.breadth) ? p.breadth * 100 : NaN;
+  const regimeNote = regime && Number.isFinite(regime.multiplier)
+    ? `<span style="display:block;margin-top:4px">رژیم ${esc(regime.fa)} · ضریب امتیاز ×${fmtNum(regime.multiplier, 2)}</span>`
+    : '';
   const cells = [
     { k: 'دمای بازار', icon: 'thermometer', v: `${fmtNum(t, 0)}<span style="font-size:11px;color:var(--faint)">/۱۰۰</span>`,
-      s: gaugeHtml(t), beat: true },
+      s: gaugeHtml(t) + regimeNote, beat: true },
     { k: 'عرض بازار (مثبت/منفی)', icon: 'bar-chart-3', v: `${fmtNum(p.up)}/${fmtNum(p.down)}`,
       s: Number.isFinite(breadth) ? `${ico('percent', 10)} ${fmtNum(breadth, 0)}٪ نمادها صعودی` : '—' },
     { k: 'ارزش معاملات', icon: 'coins', v: fmtBig(p.value), s: `${n(p.volume)} برگه معامله` },
@@ -110,15 +113,27 @@ export function renderTable(rows, { sortKey, sortDir, onSort, events = [] } = {}
     }
   });
 
+  /* خوشه‌بندی صناعی: برترین نماد هر صنعت در همین فهرست نشان می‌گیرد —
+   * ۵ نماد برتر یک صنعت، یک ایدهٔ معامله‌اند نه پنج تا. */
+  const bestOfSector = new Map();
+  if (rows.length > 2) {
+    for (const r of rows) {
+      const k = r.inst.cs || '—';
+      if (!bestOfSector.has(k) || (r.score.total ?? -1) > (bestOfSector.get(k).score ?? -1)) {
+        bestOfSector.set(k, r.score.total ?? -1);
+      }
+    }
+  }
   tb.innerHTML = rows.map((r, i) => {
     const { inst: s, metrics: m, score, plan } = r;
     const tech = techDots(r.tech);
     const h = plan?.horizon ? HORIZON[plan.horizon] : null;
     const cap = Number.isFinite(m.capacity) ? `<span class="num ${m.capacity < .25 ? 'warn' : ''}">${fmtNum(m.capacity * 100, 0)}٪</span>` : DASH;
     const risk = Number.isFinite(score.confidence) ? score.confidence : 0;
+    const isBest = rows.length > 2 && bestOfSector.get(s.cs || '—') === (score.total ?? -1);
     return `<tr data-r="${i}">
       <td data-l="رتبه"><span class="rank ${i < 3 ? 'top' : ''}">${i + 1}</span></td>
-      <td data-l="نماد"><span class="sym"><b>${esc(s.l18)}${events.length ? eventsBadge(events, s.l18) : ''}</b><span>${esc(s.cs)} · ${esc(s.board)}</span></span></td>
+      <td data-l="نماد"><span class="sym"><b>${esc(s.l18)}${events.length ? eventsBadge(events, s.l18) : ''}</b><span>${esc(s.cs)} · ${esc(s.board)}${isBest ? ' · <span class="up">برترین صنعت</span>' : ''}</span></span></td>
       <td data-l="آخرین (ریال)"><span class="row" style="gap:8px;justify-content:flex-end">${n(fmtOpts.unit === 'toman' ? s.pl / 10 : s.pl)} ${pct(m.chgLast)}</span></td>
       <td data-l="پایانی/دیروز" class="hide-sm">${pct(m.chgClose)}</td>
       <td data-l="قدرت خریدار">${powerCell(m.buyerPower)}</td>
@@ -210,7 +225,7 @@ export function tableSkeleton(mode) {
 
 /* ═════════════════۳. پنل جزئیات ═════════════════ */
 
-export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onCmp = null } = {}) {
+export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onCmp = null, regime = null } = {}) {
   const p = $('#detail-panel'); if (!p) return;
   if (!r) {
     p.innerHTML = `<div class="glass detail"><div class="center" style="padding:22px 0">
@@ -257,7 +272,7 @@ export function renderDetail(r, { watchlist, onWatch, events = [], cmp = [], onC
 
     <div class="d-factors">
       <div class="row-between" style="margin-bottom:9px">
-        <b style="font-size:13.5px">کالبدشکافی امتیاز</b>
+        <b style="font-size:13.5px">کالبدشکافی امتیاز${regime && Number.isFinite(regime.multiplier) ? `<span class="tiny faint" style="font-weight:400;margin-inline-start:8px">رژیم ${esc(regime.fa)} ×${fmtNum(regime.multiplier, 2)}</span>` : ''}</b>
         ${scoreBadge(score)}
       </div>
       <div class="col" style="gap:11px">${bars}</div>
@@ -432,8 +447,8 @@ export function officialError(msg) {
 const subline = (key, d) => {
   const f = (v, mul = 1, suf = '') => Number.isFinite(v) ? `${fmtNum(v * mul, 2)}${suf}` : '—';
   if (key === 'tablo') return `قدرت خریدار ${f(d.buyerPower)} · سهم پول حقیقی ${f(d.netRealShare, 100, '٪')} · OBI ${f(d.obi)} · حجم ${f(d.volumeShock, 1, '×')} · ${esc(d.k2k || '')}`;
-  if (key === 'short') return `RSI ${f(d.rsi, 1, '')} · اختلاف EMA ${f(d.emaGap, 1, '٪')} · موقعیت در بازه روز ${f(d.dayRangePos, 100, '٪')} · مومنتوم ۵r ${f(d.ret5, 1, '٪')}`;
-  if (key === 'mid') return `SMA20−SMA50 ${f(d.smaGap, 1, '٪')} · MACD-Hist ${f(d.macdHist)} · قیمت/SMA20 ${f(d.priceVsSma, 1, '٪')} · شیب ${f(d.slope20, 1, '٪')}`;
+  if (key === 'short') return `RSI ${f(d.rsi, 1, '')} · اختلاف EMA ${f(d.emaGap, 1, '٪')} · موقعیت در بازه روز ${f(d.dayRangePos, 100, '٪')} · مومنتوم ۵r ${f(d.ret5, 1, '٪')}${Number.isFinite(d.rsPct) ? ` · <span class="up">قدرت نسبی ${f(d.rsPct, 0, '٪')}</span>` : ''}`;
+  if (key === 'mid') return `SMA20−SMA50 ${f(d.smaGap, 1, '٪')} · MACD-Hist ${f(d.macdHist)} · قیمت/SMA20 ${f(d.priceVsSma, 1, '٪')} · شیب ${f(d.slope20, 1, '٪')}${Number.isFinite(d.sectorPct) ? ` · صنعت ${f(d.sectorPct, 0, '٪')}` : ''}`;
   if (key === 'long') return `فاصله از SMA200 ${f(d.vs200, 1, '٪')} · P/E ${f(d.pe)} · نسبت به صنعت ${f(d.peVsSector, 1, '×')} · گردش ${f(d.turnover, 100, '٪')}`;
   return `ارزش روز ${Number.isFinite(d.tval) ? fmtNum(d.tval / 1e9, 1) + ' م.ریال' : '—'} · شناوری ${f(d.freeFloat, 1, '٪')} · نوسان سالانه ${f(d.vol60, 1, '٪')}`;
 };

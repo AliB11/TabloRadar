@@ -17,7 +17,7 @@ import { sma, ema, rsi, macd, atr, slope, returns, bollinger, annualizedVol } fr
 import {
   instrumentMetrics, vetoCheck, factorScores, scoreInstrument, signalPlan, positionSize,
   explain, analyzeInstrument, rankInstruments, marketPulse, sectorAggregates,
-  classifyK2K, DEFAULT_RULES, DEFAULT_WEIGHTS, horizonOf,
+  classifyK2K, marketRegime, DEFAULT_RULES, DEFAULT_WEIGHTS, horizonOf,
 } from '../assets/js/engine.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -375,5 +375,75 @@ test('خروجی اسنپ‌شات آفلاین برچسب‌دار است و ت
     assert.ok(RAW.every(r => Array.isArray(r.anchor_fields)), 'لنگرهای واقعی هر رکورد ثبت می‌شود');
   } else {
     assert.ok(RAW.every(r => r.synthetic === false), 'دادهٔ زنده نباید synthetic باشد');
+  }
+});
+
+/* ─────────────────── بستهٔ کیفیت سیگنال (v4.3) ─────────────────── */
+
+test('نقدشوندگی پایدار: وتو بر میانگین ۳۰روزه؛ لرزش یک‌روزه وتو نمی‌سازد', () => {
+  // میانگین حجم ۴۰۰هزار × vwap ~۱۰۳۰۰ ≈ ۴.۱ میلیارد ریال < ۵۰ میلیارد → وتو با برچسب ۳۰روزه
+  const thinInst = fixture({ avgVal: 400_000 });
+  const thin = vetoCheck(thinInst, instrumentMetrics(thinInst), DEFAULT_RULES);
+  assert.ok(thin.vetoed && thin.codes.includes('liq'));
+  assert.ok(thin.fa.some(x => x.includes('۳۰روزه')), 'پیام وتو باید میانگین ۳۰روزه را ذکر کند');
+  // امروز کم‌معامله اما میانگین پرحجم → وتو نمی‌شود (رفع لرزش وتو)
+  const deep = fixture({ avgVal: 10_000_000, tval: 5_000_000_000, tvol: 500_000 });
+  assert.equal(vetoCheck(deep, instrumentMetrics(deep), DEFAULT_RULES).vetoed, false);
+  // بدون میانگین → رفتار قدیم بر tval همان روز
+  const legacy = fixture({ tval: 10_000_000 });
+  const v = vetoCheck(legacy, instrumentMetrics(legacy), DEFAULT_RULES);
+  assert.ok(v.vetoed && v.codes.includes('liq') && v.fa.some(x => x.includes('ارزش معاملات')));
+});
+
+test('قدرت نسبی و چرخش صناعی: فقط با ctx فعال می‌شوند و جهت درست دارند', () => {
+  const inst = fixture({});
+  const m = instrumentMetrics(inst);
+  const base = factorScores(inst, m, DEFAULT_RULES);
+  assert.ok(!Number.isFinite(base.detail.short.rsPct), 'بدون ctx، صدک قدرت نسبی غایب است (سازگاری با قبل)');
+  assert.ok(!Number.isFinite(base.detail.mid.sectorPct));
+  const hiRs = factorScores(inst, m, DEFAULT_RULES, { rsPct: 95 });
+  const loRs = factorScores(inst, m, DEFAULT_RULES, { rsPct: 5 });
+  assert.equal(hiRs.detail.short.rsPct, 95);
+  assert.ok(hiRs.short > loRs.short, 'صدک بالاتر قدرت نسبی ⇒ امتیاز کوتاه‌مدت بالاتر');
+  const hiSec = factorScores(inst, m, DEFAULT_RULES, { sectorPct: 95 });
+  const loSec = factorScores(inst, m, DEFAULT_RULES, { sectorPct: 5 });
+  assert.equal(hiSec.detail.mid.sectorPct, 95);
+  assert.ok(hiSec.mid > loSec.mid, 'صنعت صدرنشین ⇒ امتیاز میان‌مدت بالاتر');
+});
+
+test('رژیم بازار: خنثی بدون ضریب؛ ریزش عمومی رقیق‌کننده', () => {
+  const mk = chg => normalizeInstrument({
+    l18: 'ت' + chg, l30: 'ت', cs: 'x', pc: 1000,
+    pl: Math.round(1000 * (1 + chg / 100)), py: 1000, tval: 1e11, tvol: 1e6,
+  });
+  const bear = marketRegime(Array.from({ length: 12 }, () => mk(-2)));
+  assert.equal(bear.state, 'bear');
+  assert.ok(bear.multiplier >= 0.75 && bear.multiplier < 0.9, `multiplier=${bear.multiplier}`);
+  const neutral = marketRegime(
+    [...Array(6)].map(() => mk(1)).concat([...Array(6)].map(() => mk(-1))));
+  assert.equal(neutral.state, 'neutral');
+  assert.equal(neutral.multiplier, 1);
+});
+
+test('ضریب رژیم در رتبه‌بندی: امتیاز مطلق رقیق می‌شود، ترتیب نسبی و عوامل ثابت', () => {
+  // pl ثابت؛ pc و آستانه‌ها متناسب جابه‌جا می‌شوند تا فقط «تغییر مرجع رژیم» فرق کند
+  const run = chgPct => rankInstruments(Array.from({ length: 12 }, (_, i) => {
+    const pc = Math.round(10000 / (1 + chgPct / 100));
+    return normalizeInstrument({
+      l18: 'س' + i, l30: 'س', cs: 'صنعت ' + (i % 3), state: 'مجاز',
+      pc, py: 10000, pl: 10000, pmin: 9700, pmax: 10300,
+      tmax: Math.round(pc * 1.03), tmin: Math.round(pc * 0.97),
+      tvol: 10_000_000, tval: 103_000_000_000, tno: 1000, zTitad: 1e9,
+    });
+  }), {});
+  const neutral = run(0);
+  const bear = run(-2);
+  assert.equal(neutral.regime.multiplier, 1, 'رژیم خنثی ⇒ ضریب ۱');
+  assert.ok(bear.regime.multiplier < 1, 'رژیم ریزشی ⇒ ضریب < ۱');
+  assert.deepEqual(bear.rows.map(r => r.inst.l18), neutral.rows.map(r => r.inst.l18), 'ترتیب نسبی حفظ می‌شود');
+  for (let i = 0; i < Math.min(4, neutral.rows.length); i++) {
+    const expected = +(neutral.rows[i].score.total * bear.regime.multiplier).toFixed(1);
+    assert.ok(Math.abs(bear.rows[i].score.total - expected) <= 0.11,
+      `امتیاز ریزشی باید ضریب‌خوردهٔ خنثی باشد: ${bear.rows[i].score.total} ≠ ${expected}`);
   }
 });
