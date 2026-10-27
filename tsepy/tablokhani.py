@@ -161,11 +161,32 @@ def metrics(inst) -> dict[str, Any]:
         m["vol60"] = T.annualized_vol(closes)
         m["range_pos60"] = T.range_position(closes, 60)
         m["mdd"] = T.max_drawdown(closes)
+        # واگرایی قیمت/RSI روی سوینگ‌های ۶۰ جلسهٔ اخیر
+        m["divergence"] = detect_divergence(closes, T.rsi_series(closes, 14))
+        # تأیید حجم بر روند: انباشت/توزیع OBV
+        m["obv_trend"] = obv_trend(bars)
+        # حمایت/مقاومت داده‌محور
+        lv = find_levels(closes, pl if fin(pl) else closes[-1])
+        m["support"], m["resistance"] = lv["support"], lv["resistance"]
+        # گارد سلامت تاریخچه: پرش غیرواجه (افزایش سرمایه/خطای داده)
+        lp = m.get("limit_pct")
+        allowed = (lp * 100 * 1.5 + 0.5) if fin(lp) else 5.0
+        gap = 0.0
+        for i in range(1, len(closes)):
+            d = abs(closes[i] / closes[i - 1] - 1) * 100
+            if d > allowed:
+                gap = max(gap, d)
+        m["history_gap"] = gap
     else:
         for k in ("rsi", "ema9", "ema21", "sma20", "sma50", "sma200", "sma200_prev",
                   "macd_hist", "macd_hist_prev", "bb_pctb", "bb_mid", "atr", "ret5", "ret20",
                   "ret60", "slope20", "vol60", "range_pos60", "mdd"):
             m[k] = NAN
+    m.setdefault("divergence", {"code": "none", "fa": "واگرایی معنادار در سوینگ‌های اخیر", "bias": 0})
+    m.setdefault("obv_trend", NAN)
+    m.setdefault("support", NAN)
+    m.setdefault("resistance", NAN)
+    m.setdefault("history_gap", 0.0)
 
     m["k2k"] = k2k_pattern(m)
     return m
@@ -173,3 +194,61 @@ def metrics(inst) -> dict[str, Any]:
 
 def mean30(vols: list[float]) -> float:
     return T.mean(vols[-30:]) if len(vols) >= 30 else NAN
+
+
+# ─────────── واگرایی، تأیید حجم و حمایت/مقاومت (آینهٔ engine.js v4.4) ───────────
+def detect_divergence(closes: list[float], rsi_arr: list[float],
+                      lookback: int = 60, recency: int = 15) -> dict[str, Any]:
+    """واگرایی منظم قیمت/RSI روی دو سوینگ اخیر — آینهٔ detectDivergence."""
+    none_: dict[str, Any] = {"code": "none", "fa": "واگرایی معنادار در سوینگ‌های اخیر", "bias": 0}
+    if not closes or len(closes) < 25 or not rsi_arr or len(rsi_arr) < 25:
+        return none_
+    highs, lows = T.swings(closes, 3, 3, max(0, len(closes) - lookback))
+    lows = [x for x in lows if x["i"] >= len(closes) - lookback]
+    highs = [x for x in highs if x["i"] >= len(closes) - lookback]
+
+    def rsi_at(i: int) -> float:
+        return rsi_arr[i] if (0 <= i < len(rsi_arr) and fin(rsi_arr[i])) else NAN
+
+    if len(lows) >= 2:
+        a, b = lows[-2], lows[-1]
+        ra, rb = rsi_at(a["i"]), rsi_at(b["i"])
+        if b["v"] < a["v"] and fin(ra) and fin(rb) and rb > ra + 1.5 and b["i"] >= len(closes) - recency:
+            return {"code": "bull", "fa": "واگرایی مثبت (کف‌سازی)", "bias": 1, "at": b["i"]}
+    if len(highs) >= 2:
+        a, b = highs[-2], highs[-1]
+        ra, rb = rsi_at(a["i"]), rsi_at(b["i"])
+        if b["v"] > a["v"] and fin(ra) and fin(rb) and rb < ra - 1.5 and b["i"] >= len(closes) - recency:
+            return {"code": "bear", "fa": "واگرایی منفی (سقف‌سازی)", "bias": -1, "at": b["i"]}
+    return none_
+
+
+def obv_trend(bars: list[dict]) -> float:
+    """انباشت/توزیع OBV در ۲۰ جلسه نسبت به کل حجم همان دوره (آینهٔ obvTrend)."""
+    o = T.obv(bars)
+    n20 = min(20, len(o) - 1)
+    if n20 <= 5:
+        return NAN
+    delta = o[-1] - o[-1 - n20]
+    vs = sum((b.get("v") or 0.0) for b in bars[-n20:])
+    return (delta / vs) if vs > 0 else NAN
+
+
+def find_levels(closes: list[float], price: float, lookback: int = 130) -> dict[str, float]:
+    """حمایت/مقاومت داده‌محور از خوشهٔ سوینگ‌ها — آینهٔ findLevels."""
+    highs, lows = T.swings(closes, 3, 3, max(0, len(closes) - lookback))
+    pts = sorted([x["v"] for x in highs] + [x["v"] for x in lows])
+    levels: list[dict] = []
+    for p in pts:
+        if levels and p / levels[-1]["avg"] <= 1.012:
+            last = levels[-1]
+            last["avg"] = (last["avg"] * last["n"] + p) / (last["n"] + 1)
+            last["n"] += 1
+        else:
+            levels.append({"avg": p, "n": 1})
+    zones = [l["avg"] for l in levels if l["n"] >= 2]
+    pool = zones if zones else [l["avg"] for l in levels]
+    below = [x for x in pool if x < price * 0.995]
+    above = [x for x in pool if x > price * 1.005]
+    return {"support": max(below) if below else NAN,
+            "resistance": min(above) if above else NAN}

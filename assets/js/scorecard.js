@@ -47,6 +47,29 @@ export function bestThreshold(rep) {
   return best;
 }
 
+/**
+ * اعتبار تجربی (کالیبراسیون): بازه‌های امتیاز بالاتر باید برندگی بالاتری داشته باشند.
+ * خروجی: ردیف‌های آماده + یک جمع‌بندی صادقانه (calibrated/uncalibrated/insufficient).
+ */
+export function calibrationRows(rep) {
+  const list = rep?.calibration || [];
+  if (!Array.isArray(list) || list.length < 2) return { rows: [], verdict: 'insufficient' };
+  const valid = list.filter(b => b.n >= 10);
+  if (valid.length < 2) return { rows: list, verdict: 'insufficient' };
+  let consistentPairs = 0, totalPairs = 0;
+  for (let i = 1; i < valid.length; i++) {
+    totalPairs++;
+    if (valid[i].hit_rate >= valid[i - 1].hit_rate) consistentPairs++;
+  }
+  return { rows: list, verdict: consistentPairs / totalPairs >= 0.6 ? 'calibrated' : 'uncalibrated' };
+}
+
+const CALIB_META = {
+  calibrated: { fa: 'کالیبره — بازهٔ امتیاز بالاتر، برندگی بالاتر', cls: 'up' },
+  uncalibrated: { fa: 'غیرکالیبره — امتیاز بالا هنوز برندگی بالاتر نشان نمی‌دهد؛ اعتماد به عدد اطمینان موقتی است', cls: 'down' },
+  insufficient: { fa: 'نمونه برای کالیبراسیون کافی نیست (هر بازه n≥۱۰)', cls: 'faint' },
+};
+
 const VERDICT_META = {
   strong: { fa: 'پایدار', cls: 'up' }, ok: { fa: 'قابل قبول', cls: 'warn' },
   weak: { fa: 'نیازمند بازنگری', cls: 'down' }, pending: { fa: 'در انتظار داده', cls: '' },
@@ -92,6 +115,26 @@ export function scorecardHtml(rep, meta = {}) {
   <div class="table-wrap"><table class="sc-tbl"><thead><tr>
     <th>افق</th><th>n</th><th>هدف</th><th>حدضرر</th><th>بی‌نتیجه</th><th>میانگین بازده</th><th>مازاد</th><th>بازده/ریسک</th>
   </tr></thead><tbody>${rows || '<tr><td colspan="8" class="faint center" style="padding:14px">سیگنالی در این افق‌ها ثبت نشده</td></tr>'}</tbody></table></div>
+  ${(() => {
+    const cal = calibrationRows(rep);
+    if (!cal.rows.length) return '';
+    const cm = CALIB_META[cal.verdict];
+    const crows = cal.rows.map(b => `<tr>
+      <td data-l="بازهٔ امتیاز"><span class="mono" dir="ltr">${esc(b.bucket)}</span></td>
+      <td data-l="n"><span class="num" dir="ltr">${fmtNum(b.n)}</span></td>
+      <td data-l="برندگی"><b class="num ${b.hit_rate >= (rep.horizons?.['3']?.benchmark?.hit_rate ?? 0) ? 'up' : ''}" dir="ltr">${fmtNum(b.hit_rate, 1)}٪</b></td>
+    </tr>`).join('');
+    return `<div style="margin-top:14px">
+      <div class="row-between" style="margin-bottom:6px">
+        <b style="font-size:12.5px">اعتبار تجربی اطمینان — برندگی به تفکیک امتیاز هنگام سیگنال</b>
+        <span class="tiny ${cm.cls}">${esc(cm.fa)}</span>
+      </div>
+      <div class="table-wrap"><table class="sc-tbl" style="min-width:0"><thead><tr>
+        <th>بازهٔ امتیاز</th><th>n</th><th>برندگی ۳ج</th>
+      </tr></thead><tbody>${crows}</tbody></table></div>
+      <p class="tiny faint" style="margin-top:6px">${esc(rep.calibration_note || '')}</p>
+    </div>`;
+  })()}
   <div class="sc-foot">
     <span class="tiny faint">${esc(rep.method?.fa || '')}</span>
     <p class="tiny faint" style="margin-top:8px">

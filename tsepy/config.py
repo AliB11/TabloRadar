@@ -40,7 +40,8 @@ WEIGHTS = {"tablo": 30, "short": 20, "mid": 20, "long": 15, "risk": 15}
 FACTOR_KEYS = ("tablo", "short", "mid", "long", "risk")
 SUBWEIGHTS = {
     "tablo": {"buyer_power": 0.30, "net_real": 0.25, "obi": 0.15, "shock": 0.15, "k2k": 0.15},
-    "mid": {"sma_gap": 0.26, "macd": 0.21, "vs_sma20": 0.21, "slope": 0.17, "sector": 0.15},
+    "mid": {"sma_gap": 0.21, "macd": 0.18, "vs_sma20": 0.18, "slope": 0.14, "sector": 0.13,
+            "div": 0.09, "obv": 0.07},
     "long": {"vs_sma200": 0.35, "slope200": 0.20, "pe": 0.25, "turnover": 0.20},
     "risk": {"liquidity": 0.35, "queue": 0.25, "float": 0.20, "vol": 0.20},
     "short": {"rsi": 0.25, "ema": 0.22, "range": 0.12, "ret5": 0.26, "rs": 0.15},
@@ -58,6 +59,7 @@ class Rules:
     require_history: bool = False          # فقط نماد با تاریخچه
     min_float: float = 0.0                 # حداقل سهام شناور آزاد (٪)
     pe_penalty: float = 2.5                # ضریب جریمه P/E نسبت به میانگین صنعت
+    max_spread_pct: float = 1.0            # حداکثر اسپرد بهترین سطح دفتر (٪) — وتوی هزینهٔ معامله
     stop_atr_mult: float = 1.6
     target_atr_mults: tuple[float, float, float] = (1.2, 2.2, 3.4)
 

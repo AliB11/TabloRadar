@@ -190,7 +190,7 @@ def walk_forward(instruments, rules: C.Rules | None = None,
                         w0, tot = thresh_hits[t][h]
                         thresh_hits[t][h] = (w0 + (ev["outcome"] == "win"), tot + 1)
                 if sc >= SIGNAL_THRESHOLD:
-                    per_h_signals[h].append(ev)
+                    per_h_signals[h].append({**ev, "score": round(sc, 1)})
                     signal_items.append(ev)
                     if h == 3:
                         mine.append(ev)
@@ -222,10 +222,23 @@ def walk_forward(instruments, rules: C.Rules | None = None,
         if tot >= 100 and w / tot > best_hit:
             best_t, best_hit = int(t), w / tot
     winners = sorted(per_inst.items(), key=lambda kv: (-kv[1]["n"], -kv[1]["avg_ret"]))
+
+    # اعتبار تجربی (کالیبراسیون): نرخ برد به تفکیک بازهٔ امتیازِ لحظهٔ سیگنال —
+    # اگر امتیاز «کالیبره» باشد، بازه‌های بالاتر باید hit-rate بالاتری ببینند.
+    calibration = []
+    for lo, hi in ((50, 60), (60, 70), (70, 80), (80, 101)):
+        sel = [x for x in per_h_signals[3] if fin(x.get("score")) and lo <= x["score"] < hi]
+        if sel:
+            wins = sum(1 for x in sel if x["outcome"] == "win")
+            calibration.append({"bucket": f"{lo}-{min(hi, 100)}", "n": len(sel),
+                                "hit_rate": round(wins / len(sel) * 100, 1)})
     return {
         "horizons": results,
         "threshold_sweep": sweep,
         "signal_threshold": SIGNAL_THRESHOLD,
+        "calibration": calibration,
+        "calibration_note": ("نرخ برد به تفکیک بازهٔ امتیاز هستۀ تکنیکال در لحظهٔ سیگنال (افق ۳ جلسه)؛ "
+                             "کالیبره بودن یعنی بازه‌های امتیاز بالاتر، برندگی بالاتر."),
         "universe": {"symbols_with_history": n_with_hist, "eval_bars": n_scored,
                      "signals_total": len(signal_items)},
         "per_instrument": dict(winners[:8]),

@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 
 import { parseAlert, evalAlert, checkAlerts, alertLabel, metricValue } from '../assets/js/alerts.js';
 import { buildCompare, overlaySeries } from '../assets/js/compare.js';
-import { horizonRows, bestThreshold, scorecardHtml } from '../assets/js/scorecard.js';
+import { horizonRows, bestThreshold, calibrationRows, scorecardHtml } from '../assets/js/scorecard.js';
 import { eventsFor, upcoming, daysLabel, eventsBadge } from '../assets/js/events.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -122,4 +122,25 @@ test('daysLabel و eventsBadge', () => {
   const withEv = j.events.find(e => e.days_ahead >= 0);
   assert.match(eventsBadge(j.events, withEv.l18), /⚑/);
   assert.equal(eventsBadge(j.events, 'بی‌نام'), '');
+});
+
+test('کالیبراسیون اطمینان: بازه‌های صعودی ⇒ calibrated؛ نامنظم ⇒ uncalibrated؛ نمونهٔ کم ⇒ insufficient', () => {
+  const good = calibrationRows({ calibration: [
+    { bucket: '50-60', n: 40, hit_rate: 41 }, { bucket: '60-70', n: 35, hit_rate: 48 },
+    { bucket: '70-80', n: 30, hit_rate: 55 }, { bucket: '80-100', n: 20, hit_rate: 63 },
+  ] });
+  assert.equal(good.verdict, 'calibrated');
+  const bad = calibrationRows({ calibration: [
+    { bucket: '50-60', n: 40, hit_rate: 55 }, { bucket: '60-70', n: 35, hit_rate: 50 },
+    { bucket: '70-80', n: 30, hit_rate: 44 }, { bucket: '80-100', n: 20, hit_rate: 40 },
+  ] });
+  assert.equal(bad.verdict, 'uncalibrated');
+  const thin = calibrationRows({ calibration: [
+    { bucket: '50-60', n: 3, hit_rate: 41 }, { bucket: '60-70', n: 2, hit_rate: 48 },
+  ] });
+  assert.equal(thin.verdict, 'insufficient');
+  assert.equal(calibrationRows({}).verdict, 'insufficient', 'گزارش بدون کالیبراسیون نباید بشکند');
+  // رندر HTML با کالیبراسیون نباید خطا بدهد
+  const html = scorecardHtml({ calibration: good.rows, horizons: {}, verdict: { state: 'pending', fa: '—' } });
+  assert.ok(html.includes('اعتبار تجربی'));
 });

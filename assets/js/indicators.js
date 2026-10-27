@@ -152,6 +152,37 @@ export function rangePosition(closes, n = 60) {
   return hi === lo ? 0.5 : (closes[closes.length - 1] - lo) / (hi - lo);
 }
 
+/** On-Balance Volume — انباشت/توزیع حجم (جریان پول چندروزه؛ مبنای تأیید حجم بر روند) */
+export function obv(bars) {
+  if (!bars || bars.length < 2) return [];
+  const out = [0];
+  for (let i = 1; i < bars.length; i++) {
+    const prev = out[i - 1];
+    out.push(prev + (bars[i].c > bars[i - 1].c ? bars[i].v : bars[i].c < bars[i - 1].c ? -bars[i].v : 0));
+  }
+  return out;
+}
+
+/**
+ * سوینگ‌های قیمتی (قله/درهٔ محلی با left/right کندل تأیید) — مبنای واگرایی و حمایت/مقاومت.
+ * خروجی: {highs:[{i,v}], lows:[{i,v}]} فقط در بازه [from, end)
+ */
+export function swings(closes, { left = 3, right = 3, from = 0, end = Infinity } = {}) {
+  const highs = [], lows = [];
+  if (!closes || closes.length < left + right + 1) return { highs, lows };
+  for (let i = Math.max(left, from); i < Math.min(closes.length - right, end); i++) {
+    let isH = true, isL = true;
+    for (let k = i - left; k <= i + right; k++) {
+      if (k === i) continue;
+      if (closes[k] >= closes[i]) isH = false;
+      if (closes[k] <= closes[i]) isL = false;
+    }
+    if (isH) highs.push({ i, v: closes[i] });
+    if (isL) lows.push({ i, v: closes[i] });
+  }
+  return { highs, lows };
+}
+
 /** فشرده‌سازی یک آرایه کندل خام به سری‌های قابل‌استفاده */
 export function toSeries(bars) {
   const clean = (bars || []).filter(b => b && Number.isFinite(b.c) && b.c > 0);

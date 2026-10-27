@@ -17,7 +17,7 @@ import { sma, ema, rsi, macd, atr, slope, returns, bollinger, annualizedVol } fr
 import {
   instrumentMetrics, vetoCheck, factorScores, scoreInstrument, signalPlan, positionSize,
   explain, analyzeInstrument, rankInstruments, marketPulse, sectorAggregates,
-  classifyK2K, marketRegime, DEFAULT_RULES, DEFAULT_WEIGHTS, horizonOf,
+  classifyK2K, marketRegime, detectDivergence, DEFAULT_RULES, DEFAULT_WEIGHTS, horizonOf,
 } from '../assets/js/engine.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -446,4 +446,105 @@ test('ضریب رژیم در رتبه‌بندی: امتیاز مطلق رقیق
     assert.ok(Math.abs(bear.rows[i].score.total - expected) <= 0.11,
       `امتیاز ریزشی باید ضریب‌خوردهٔ خنثی باشد: ${bear.rows[i].score.total} ≠ ${expected}`);
   }
+});
+
+
+/* ─────────────────── بستهٔ دوم کیفیت سیگنال (v4.4) ─────────────────── */
+
+// موج ۷-کندلی: قله در i%7==6 و دره در i%7==0 — بدون صفحهٔ مساوی (شرط سوینگ سخت‌گیرانه)
+const waveBars = (base, n, off = 0) => Array.from({ length: n }, (_, i) => ({
+  d: i + off, c: base + [-30, -20, -10, 0, 10, 20, 30][i % 7], v: 1_000_000,
+}));
+
+test('واگرایی: کف پایین‌تر قیمت + RSI بالاتر ⇒ مثبت؛ سقف بالاتر + RSI پایین‌تر ⇒ منفی', () => {
+  const closes = Array.from({ length: 30 }, (_, i) => 1000 + (i % 7) * 10);
+  closes[7] = 990; closes[14] = 970; closes[21] = 950;        // کف‌های نزولی در i%7==0
+  const rsi = Array.from({ length: 30 }, () => 40);
+  rsi[14] = 30; rsi[21] = 42;                                 // RSI کفِ بالاتر — واگرایی مثبت
+  const d = detectDivergence(closes, rsi);
+  assert.equal(d.code, 'bull');
+  assert.ok(d.bias > 0);
+
+  const closesUp = Array.from({ length: 30 }, (_, i) => 1000 + (i % 7) * 10);
+  closesUp[6] = 1040; closesUp[13] = 1060; closesUp[20] = 1070; closesUp[27] = 1080;  // قله‌های صعودی در i%7==6
+  const rsiDown = Array.from({ length: 30 }, () => 55);
+  rsiDown[13] = 70; rsiDown[20] = 58;                          // RSI سقفِ پایین‌تر — واگرایی منفی
+  const db = detectDivergence(closesUp, rsiDown);
+  assert.equal(db.code, 'bear');
+  assert.ok(db.bias < 0);
+
+  assert.equal(detectDivergence(Array.from({ length: 30 }, (_, i) => 1000 + i),
+    Array.from({ length: 30 }, () => 50)).code, 'none', 'روند یکنواخت واگرایی نمی‌سازد');
+});
+
+test('OBV: صعود پله‌ای قیمت ⇒ انباشت؛ نزول ⇒ توزیع', () => {
+  const up = instrumentMetrics(fixture({
+    history: Array.from({ length: 40 }, (_, i) => ({ d: i, c: 10000 + i * 50, v: 1_000_000 })),
+  }));
+  assert.ok(Number.isFinite(up.obvTrend) && up.obvTrend > 0.9, `obvTrend=${up.obvTrend}`);
+  const down = instrumentMetrics(fixture({
+    history: Array.from({ length: 40 }, (_, i) => ({ d: i, c: 12000 - i * 50, v: 1_000_000 })),
+  }));
+  assert.ok(Number.isFinite(down.obvTrend) && down.obvTrend < -0.9, `obvTrend=${down.obvTrend}`);
+});
+
+test('حمایت/مقاومت داده‌محور از خوشهٔ سوینگ‌ها', () => {
+  const bars = [...waveBars(10000, 28), ...waveBars(11000, 28, 28)];
+  const inst = fixture({ history: bars, pl: 10500, pc: 10500, py: 10500 });
+  const m = instrumentMetrics(inst);
+  assert.ok(m.support > 9900 && m.support < 10200, `support=${m.support}`);
+  assert.ok(m.resistance > 10800 && m.resistance < 11200, `resistance=${m.resistance}`);
+});
+
+test('نقشهٔ S/R-aware: نخستین هدفِ عبوری از مقاومت پیش از سطح کوتاه می‌شود و نردبان صعودی می‌ماند', () => {
+  const bars = [...waveBars(10100, 28), ...waveBars(10230, 28, 28)];   // مقاومت نزدیک ~۱۰۲۳۰
+  const inst = fixture({ history: bars, pl: 10100, pc: 10100, py: 10100 });
+  const m = instrumentMetrics(inst);
+  const plan = signalPlan(inst, m, DEFAULT_RULES);
+  assert.ok(plan && Number.isFinite(plan.resistance), `resistance=${m.resistance}`);
+  for (let i = 1; i < plan.targets.length; i++) {
+    assert.ok(plan.targets[i] > plan.targets[i - 1], 'نردبان اهداف باید صعودی بماند');
+  }
+  const res = plan.resistance * 0.99;
+  assert.ok(plan.targets.some(t => t <= res + 1e-6), 'حداقل یک هدف باید پیش از مقاومت کوتاه شده باشد');
+  for (let i = 1; i < plan.targets.length; i++) {
+    if (plan.targets[i] <= res + 1e-6) continue;   // اهداف کوتاه‌شده مجازند
+    assert.ok(plan.targets[i] > res, 'اهداف سناریوی شکست از مقاومت بالاترند');
+    break;
+  }
+});
+
+test('وتوی هزینهٔ معامله: اسپرد پهن وتو می‌شود؛ صف‌قفل اسپرد نمی‌سازد', () => {
+  const wide = fixture({ qd1: 500_000, pd1: 10_000, qo1: 400_000, po1: 10_250 });  // اسپرد ۲٫۴٪
+  const vw = vetoCheck(wide, instrumentMetrics(wide), DEFAULT_RULES);
+  assert.ok(vw.vetoed && vw.codes.includes('cost'), 'اسپرد > ۱٪ باید وتو شود');
+  const tight = fixture({ qd1: 500_000, pd1: 10_000, qo1: 400_000, po1: 10_010 }); // اسپرد ۰٫۱٪
+  assert.ok(!vetoCheck(tight, instrumentMetrics(tight), DEFAULT_RULES).codes.includes('cost'));
+  const queued = fixture({ qd1: 900_000, pd1: 10300, qo1: 0, po1: 0 });            // صف خرید: سمت عرضه خالی
+  assert.ok(!vetoCheck(queued, instrumentMetrics(queued), DEFAULT_RULES).codes.includes('cost'));
+});
+
+test('گارد سلامت تاریخچه: پرش غیرمجاز ثبت و اطمینان دقیقاً ۲۵٪ کم می‌شود', () => {
+  // ۱) سازوکار: مستقیم روی scoreInstrument — بدون نویز فاکتورها
+  const inst = fixture({});
+  const m0 = instrumentMetrics(inst);
+  const f = factorScores(inst, m0, DEFAULT_RULES);
+  const s0 = scoreInstrument(inst, { ...m0, historyGap: 0 }, f, DEFAULT_WEIGHTS);
+  const s1 = scoreInstrument(inst, { ...m0, historyGap: 12 }, f, DEFAULT_WEIGHTS);
+  assert.ok(Math.abs(s1.confidence - Math.round(s0.confidence * 0.75)) <= 1,
+    `confidence با گپ باید ×۰٫۷۵ شود: ${s1.confidence} vs ${s0.confidence}`);
+  // ۲) تشخیص: پرش ~۱۴٪ میان تاریخچه ثبت می‌شود
+  const bars = [
+    ...Array.from({ length: 30 }, (_, i) => ({ d: i, c: 10000 + i * 20, v: 1e6 })),   // تا ۱۱۵۸۰
+    ...Array.from({ length: 30 }, (_, i) => ({ d: i + 30, c: 13200 + i * 20, v: 1e6 })), // پرش +۱۴٪
+  ];
+  const gapped = instrumentMetrics(fixture({
+    history: bars, pl: 13780, pc: 13780, py: 13780, tmax: 14193, tmin: 13367,
+  }));
+  assert.ok(gapped.historyGap > 10, `gap=${gapped.historyGap}`);
+  const clean = instrumentMetrics(fixture({
+    history: Array.from({ length: 60 }, (_, i) => ({ d: i, c: 10000 + i * 20, v: 1e6 })),
+    pl: 11180, pc: 11180, py: 11180, tmax: 11515, tmin: 10845,
+  }));
+  assert.equal(clean.historyGap, 0);
 });

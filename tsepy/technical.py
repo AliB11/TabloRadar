@@ -169,3 +169,44 @@ def series(bars: list[dict]) -> tuple[list[float], list[float]]:
     closes = [b["c"] for b in clean]
     vols = [b.get("v") for b in clean if is_num(b.get("v")) and b.get("v") > 0]
     return closes, vols
+
+
+def obv(bars: list[dict]) -> list[float]:
+    """On-Balance Volume — انباشت/توزیع حجم (آینهٔ obv در indicators.js)."""
+    if not bars or len(bars) < 2:
+        return []
+    out = [0.0]
+    for i in range(1, len(bars)):
+        prev = out[i - 1]
+        c, cp = bars[i].get("c"), bars[i - 1].get("c")
+        v = bars[i].get("v") or 0.0
+        delta = 0.0
+        if is_num(c) and is_num(cp):
+            delta = v if c > cp else (-v if c < cp else 0.0)
+        out.append(prev + delta)
+    return out
+
+
+def swings(closes: list[float], left: int = 3, right: int = 3,
+           start: int = 0, end: int | None = None) -> tuple[list, list]:
+    """سوینگ‌های قیمتی (قله/درهٔ محلی) — آینهٔ swings در indicators.js.
+    خروجی: (highs, lows) هر عضو {i, v} در بازه [start, end)."""
+    highs: list = []
+    lows: list = []
+    if not closes or len(closes) < left + right + 1:
+        return highs, lows
+    hi_end = (len(closes) - right) if end is None else min(end, len(closes) - right)
+    for i in range(max(left, start), max(0, hi_end)):
+        is_h, is_l = True, True
+        for k in range(i - left, i + right + 1):
+            if k == i:
+                continue
+            if closes[k] >= closes[i]:
+                is_h = False
+            if closes[k] <= closes[i]:
+                is_l = False
+        if is_h:
+            highs.append({"i": i, "v": closes[i]})
+        if is_l:
+            lows.append({"i": i, "v": closes[i]})
+    return highs, lows

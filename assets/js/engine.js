@@ -13,8 +13,8 @@
 
 import { limitPctOf, fmtNum, expandHistory } from './tse.js';
 import {
-  sma, ema, rsi, macd, bollinger, atr, returns, slope, annualizedVol,
-  rangePosition, maxDrawdown, toSeries,
+  sma, ema, rsiSeries, macd, bollinger, atr, returns, slope, annualizedVol,
+  rangePosition, maxDrawdown, toSeries, obv, swings,
 } from './indicators.js';
 
 /* ───────────────────────── پیکربندی پیش‌فرض ───────────────────────── */
@@ -43,6 +43,7 @@ export const DEFAULT_RULES = {
   minFloat: 0,             // حداقل سهام شناور آزاد (٪)
   pePenalty: 2.5,          // P/E بیش از این ضریب میانگین صنعت → جریمه ریسک
   minOrderValue: 5e6,      // حداقل ارزش سفارش برخط (ریال) — قابل تنظیم توسط کاربر
+  maxSpreadPct: 1.0,       // حداکثر اسپرد بهترین سطح دفتر (٪) — وتوی هزینهٔ معامله
 };
 
 export const VETO_META = [
@@ -56,6 +57,8 @@ export const VETO_META = [
     detail: 'صندوق، اوراق، حق‌تقدم یا بازار پایه (طبق تنظیمات شما).' },
   { code: 'data',     fa: 'داده ناکافی', icon: 'database-zap',
     detail: 'قیمت یا داده تابلو ناقص است؛ امتیازدهی معتبر ممکن نیست.' },
+  { code: 'cost',     fa: 'هزینهٔ معامله بالا', icon: 'percent',
+    detail: 'اسپرد بهترین سطح دفتر سفارش بیش از حد مجاز است؛ ورود و خروج پرهزینه می‌شود.' },
 ];
 
 /* ───────────────────────── ابزار ریاضی ───────────────────────── */
@@ -182,7 +185,8 @@ export function instrumentMetrics(inst, ctx = {}) {
     ? [...closes, pl] : closes;
   m.hasHistory = withLive.length >= 30;
   if (m.hasHistory) {
-    m.rsi = rsi(withLive, 14);
+    const rsiArr = rsiSeries(withLive, 14);
+    m.rsi = rsiArr[rsiArr.length - 1];
     m.ema9 = ema(withLive, 9);
     m.ema21 = ema(withLive, 21);
     m.sma20 = sma(withLive, 20);
@@ -201,9 +205,80 @@ export function instrumentMetrics(inst, ctx = {}) {
     m.vol60 = annualizedVol(withLive);
     m.rangePos60 = rangePosition(withLive, 60);
     m.mdd = maxDrawdown(withLive);
+    /* واگرایی قیمت/RSI روی سوینگ‌های ۶۰ جلسهٔ اخیر */
+    m.divergence = detectDivergence(withLive, rsiArr);
+    /* تأیید حجم بر روند: انباشت/توزیع OBV در ۲۰ جلسه نسبت به کل حجم همان دوره */
+    const o = obv(bars);
+    const n20 = Math.min(20, o.length - 1);
+    if (n20 > 5) {
+      const obvDelta = o[o.length - 1] - o[o.length - 1 - n20];
+      const volSum = vols.slice(-n20).reduce((a, b) => a + b, 0);
+      m.obvTrend = volSum > 0 ? obvDelta / volSum : NaN;
+    } else m.obvTrend = NaN;
+    /* حمایت/مقاومت: خوشهٔ سوینگ‌های ۱۳۰ جلسهٔ اخیر */
+    const lv = findLevels(withLive, has(pl) ? pl : withLive[withLive.length - 1]);
+    m.support = lv.support; m.resistance = lv.resistance;
+    /* گارد سلامت تاریخچه: پرش غیرواجه (افزایش سرمایه/خطای داده) → جریمهٔ اطمینان */
+    const allowed = (m.limitPct || 0.03) * 100 * 1.5 + 0.5;
+    m.historyGap = 0;
+    for (let i = 1; i < withLive.length; i++) {
+      const d = Math.abs(withLive[i] / withLive[i - 1] - 1) * 100;
+      if (d > allowed) m.historyGap = Math.max(m.historyGap, d);
+    }
   }
 
   return m;
+}
+
+/**
+ * واگرایی منظم قیمت/RSI روی دو سوینگ اخیر (ابزار مرسوم تالار ایران):
+ * مثبت: کفِ پایین‌تر قیمت با کفِ بالاتر RSI — منفی: سقفِ بالاتر قیمت با سقفِ پایین‌تر RSI.
+ * سوینگ آخر باید در ۱۵ کندل اخیر باشد تا واگرایی «تازه» محسوب شود.
+ */
+export function detectDivergence(closes, rsiArr, { lookback = 60, recency = 15 } = {}) {
+  const none = { code: 'none', fa: 'واگرایی معنادار در سوینگ‌های اخیر', bias: 0 };
+  if (!closes || closes.length < 25 || !Array.isArray(rsiArr) || rsiArr.length < 25) return none;
+  const s = swings(closes, { left: 3, right: 3, from: Math.max(0, closes.length - lookback) });
+  const rl = s.lows.filter(x => x.i >= closes.length - lookback);
+  const rh = s.highs.filter(x => x.i >= closes.length - lookback);
+  const rsiAt = i => (Number.isFinite(rsiArr[i]) ? rsiArr[i] : NaN);
+  if (rl.length >= 2) {
+    const a = rl[rl.length - 2], b = rl[rl.length - 1];
+    if (b.v < a.v && rsiAt(b.i) > rsiAt(a.i) + 1.5 && b.i >= closes.length - recency) {
+      return { code: 'bull', fa: 'واگرایی مثبت (کف‌سازی)', bias: +1, at: b.i };
+    }
+  }
+  if (rh.length >= 2) {
+    const a = rh[rh.length - 2], b = rh[rh.length - 1];
+    if (b.v > a.v && rsiAt(b.i) < rsiAt(a.i) - 1.5 && b.i >= closes.length - recency) {
+      return { code: 'bear', fa: 'واگرایی منفی (سقف‌سازی)', bias: -1, at: b.i };
+    }
+  }
+  return none;
+}
+
+/**
+ * حمایت/مقاومت از خوشهٔ سوینگ‌های ۱۳۰ جلسهٔ اخیر — کاملاً داده‌محور.
+ * سوینگ‌های نزدیک (≤۱٫۲٪) خوشه می‌شوند؛ فقط خوشه‌های با ≥۲ لمس به‌عنوان سطح معتبرند
+ * (در نبود خوشهٔ معتبر، بهترین حدس همان سوینگ‌هاست) و نزدیک‌ترین سطح زیر/برای قیمت برمی‌گردد.
+ */
+function findLevels(closes, price, { lookback = 130 } = {}) {
+  const s = swings(closes, { left: 3, right: 3, from: Math.max(0, closes.length - lookback) });
+  const pts = [...s.highs.map(x => x.v), ...s.lows.map(x => x.v)].sort((a, b) => a - b);
+  const levels = [];
+  for (const p of pts) {
+    const last = levels[levels.length - 1];
+    if (last && p / last.avg <= 1.012) { last.avg = (last.avg * last.n + p) / (last.n + 1); last.n++; }
+    else levels.push({ avg: p, n: 1 });
+  }
+  const zones = levels.filter(l => l.n >= 2).map(l => l.avg);
+  const pool = zones.length ? zones : levels.map(l => l.avg);
+  const below = pool.filter(x => x < price * 0.995);
+  const above = pool.filter(x => x > price * 1.005);
+  return {
+    support: below.length ? Math.max(...below) : NaN,
+    resistance: above.length ? Math.min(...above) : NaN,
+  };
 }
 
 /**
@@ -260,6 +335,15 @@ export function vetoCheck(inst, m, rules = DEFAULT_RULES) {
       : `ارزش معاملات ${fmtNum(inst.tval / 1e9, 1)} میلیارد ریال < ${fmtNum(rules.minValue / 1e9, 0)} میلیارد`);
   }
   if (m.sellQueueLocked) push('sellQueue', `صف فروش ${fmtNum(m.sellQueue)} برگه در کف مجاز`);
+  /* هزینهٔ معامله: اسپرد بهترین سطح دفتر — فقط وقتی هر دو سمت موجود است
+   * (در صف خرید/فروش یک سمت خالی است و اسپرد معنا ندارد). */
+  const b0 = (inst.book || [])[0];
+  if (b0 && Number.isFinite(b0.bid?.p) && b0.bid.p > 0 && Number.isFinite(b0.ask?.p) && b0.ask.p > 0) {
+    const spreadPct = (b0.ask.p - b0.bid.p) / b0.ask.p * 100;
+    if (spreadPct > rules.maxSpreadPct) {
+      push('cost', `اسپرد ${fmtNum(spreadPct, 2)}٪ > ${fmtNum(rules.maxSpreadPct, 1)}٪ مجاز`);
+    }
+  }
   if (has(m.freeFloat) && m.freeFloat < rules.minFloat) {
     push('data', `شناوری آزاد ${fmtNum(m.freeFloat, 1)}٪ کمتر از آستانه`);
   }
@@ -318,16 +402,23 @@ export function factorScores(inst, m, rules = DEFAULT_RULES, ctx = {}) {
   const smaGap = has(m.sma20) && has(m.sma50) && m.sma50 ? (m.sma20 - m.sma50) / m.sma50 * 100 : NaN;
   const macdRising = has(m.macdHist) && has(m.macdHistPrev) ? (m.macdHist > m.macdHistPrev ? 1 : 0) : NaN;
   const priceVsSma = has(inst.pl) && has(m.sma20) && m.sma20 ? (inst.pl - m.sma20) / m.sma20 * 100 : NaN;
+  const divScore = m.divergence?.code === 'bull' ? 100 : m.divergence?.code === 'bear' ? 0 : null;
+  const obvPart = has(m.obvTrend) ? clamp(sig(m.obvTrend, 0, 6)) : null;
   f.mid = weighted([
-    { v: has(smaGap) ? sig(smaGap, 0, 2.2) : null, w: .26 },
-    { v: has(m.macdHist) ? sig(m.macdHist / (inst.pl || 1) * 100, 0, 3.5) : null, w: .21 },
-    { v: has(priceVsSma) ? sig(priceVsSma, 0, 1.6) : null, w: .21 },
-    { v: has(m.slope20) ? sig(m.slope20, 0, 9) : null, w: .17 },
+    { v: has(smaGap) ? sig(smaGap, 0, 2.2) : null, w: .21 },
+    { v: has(m.macdHist) ? sig(m.macdHist / (inst.pl || 1) * 100, 0, 3.5) : null, w: .18 },
+    { v: has(priceVsSma) ? sig(priceVsSma, 0, 1.6) : null, w: .18 },
+    { v: has(m.slope20) ? sig(m.slope20, 0, 9) : null, w: .14 },
     /* چرخش صناعی: رتبهٔ صدکی میانگین تغییر صنعت نماد در مقطع بازار */
-    { v: has(ctx.sectorPct) ? sig(ctx.sectorPct, 50, .045) : null, w: .15 },
+    { v: has(ctx.sectorPct) ? sig(ctx.sectorPct, 50, .045) : null, w: .13 },
+    /* واگرایی قیمت/RSI روی سوینگ‌های اخیر */
+    { v: divScore, w: .09 },
+    /* تأیید حجم بر روند: انباشت/توزیع OBV */
+    { v: obvPart, w: .07 },
   ]);
   f.detail.mid = { smaGap, macdHist: m.macdHist, macdRising, priceVsSma, slope20: m.slope20,
-    sectorPct: has(ctx.sectorPct) ? ctx.sectorPct : NaN };
+    sectorPct: has(ctx.sectorPct) ? ctx.sectorPct : NaN,
+    divergence: m.divergence?.fa || '', obvTrend: m.obvTrend };
 
   /* ── بلندمدت و بنیادی ── */
   const vs200 = has(inst.pl) && has(m.sma200) && m.sma200 ? (inst.pl - m.sma200) / m.sma200 * 100 : NaN;
@@ -390,8 +481,10 @@ export function scoreInstrument(inst, m, factors, weights = DEFAULT_WEIGHTS) {
   const sd = present.length > 1
     ? Math.sqrt(present.reduce((a, b) => a + (b - mean) ** 2, 0) / present.length) : NaN;
   const agreement = has(sd) ? clamp(100 - sd * 1.35) : (present.length ? 55 : 0);
-  /* اطمینان = پوشش داده × هم‌راستایی عوامل؛ با داده ناقص هرگز «بااطمینان» نمی‌شود */
-  const confidence = clamp(factors.coverage * 100 * (0.65 + 0.35 * (agreement / 100)));
+  /* اطمینان = پوشش داده × هم‌راستایی عوامل؛ با داده ناقص هرگز «بااطمینان» نمی‌شود.
+   * گارد سلامت تاریخچه: پرش غیرواجه (افزایش سرمایه/خطای منبع) → اطمینان ×۰٫۷۵ */
+  let confidence = clamp(factors.coverage * 100 * (0.65 + 0.35 * (agreement / 100)));
+  if (m.historyGap > 0) confidence = clamp(confidence * 0.75);
 
   const grade = gradeOf(total, confidence);
   return {
@@ -425,7 +518,17 @@ export function signalPlan(inst, m, opts = {}) {
   const atrVal = has(m.atr) && m.atr > 0 ? m.atr : entry * limit * 0.75;
   const atrSource = has(m.atr) && m.atr > 0 ? 'ATR(14)' : 'برآورد از دامنه نوسان';
   const stop = Math.max(has(inst.tmin) ? inst.tmin : 0, entry - 1.6 * atrVal);
-  const targets = [1.2, 2.2, 3.4].map(k => entry + k * atrVal);
+  let targets = [1.2, 2.2, 3.4].map(k => entry + k * atrVal);
+  /* S/R-aware: نخستین هدفی که از مقاومت عبور می‌کند، پیش از سطح کوتاه می‌شود
+   * (خروج زیر مقاومت)؛ اهداف بعدی همان سناریوی شکست می‌مانند و نردبان صعودی حفظ می‌شود. */
+  const res = has(m.resistance) && m.resistance * 0.99 > entry * 1.002 ? m.resistance * 0.99 : null;
+  if (res) {
+    let capped = false;
+    targets = targets.map(t => {
+      if (!capped && t > res) { capped = true; return res; }
+      return t;
+    });
+  }
   const risk = entry - stop;
   const rr = risk > 0 ? (targets[1] - entry) / risk : NaN;
   const sessionsTo = t => Math.max(1, Math.ceil(((t - entry) / entry) / limit));
@@ -436,6 +539,8 @@ export function signalPlan(inst, m, opts = {}) {
     stopPct: risk > 0 ? -(risk / entry) * 100 : NaN,
     targetPct: targets.map(t => ((t - entry) / entry) * 100),
     sessions: targets.map(sessionsTo),
+    support: has(m.support) ? m.support : null,
+    resistance: has(m.resistance) ? m.resistance : null,
     minOrderValue: opts.minOrderValue ?? DEFAULT_RULES.minOrderValue,
   };
 }
@@ -485,6 +590,24 @@ export function explain(inst, m, f) {
   if (has(m.volumeShock)) {
     add(`حجم امروز ${fmtNum(m.volumeShock, 1)} برابر میانگین ۳۰ روز${m.volumeShockSource === 'avgVal' ? ' (از میانگین ارزش معاملات)' : ''}`,
       m.volumeShock >= 1.8 ? 'pos' : m.volumeShock <= 0.7 ? 'neg' : 'neutral');
+  }
+  if (m.divergence && m.divergence.code === 'bull') {
+    add(`${m.divergence.fa} — کف پایین‌تر قیمت همراه با RSI بالاتر در سوینگ اخیر`, 'pos');
+  } else if (m.divergence && m.divergence.code === 'bear') {
+    add(`${m.divergence.fa} — سقف بالاتر قیمت همراه با RSI پایین‌تر؛ احتمال اصلاح`, 'neg');
+  }
+  if (has(m.obvTrend)) {
+    add(`جریان OBV در ۲۰ جلسه: ${m.obvTrend >= 0 ? 'انباشت' : 'توزیع'} معادل ${fmtNum(Math.abs(m.obvTrend) * 100, 1)}٪ حجم دوره`,
+      m.obvTrend >= 0.05 ? 'pos' : m.obvTrend <= -0.05 ? 'neg' : 'neutral');
+  }
+  if (has(m.support) && has(inst.pl) && m.support < inst.pl) {
+    add(`نزدیک‌ترین حمایت داده‌محور: ${fmtNum(m.support)} (${fmtNum((inst.pl - m.support) / inst.pl * 100, 1)}٪ پایین‌تر)`, 'neutral');
+  }
+  if (has(m.resistance) && has(inst.pl) && m.resistance > inst.pl) {
+    add(`نزدیک‌ترین مقاومت داده‌محور: ${fmtNum(m.resistance)} (${fmtNum((m.resistance - inst.pl) / inst.pl * 100, 1)}٪ بالاتر) — اهداف پیش از آن کوتاه شده‌اند`, 'neutral');
+  }
+  if (m.historyGap > 0) {
+    add(`پرش غیرمجاز ${fmtNum(m.historyGap, 1)}٪ در تاریخچه (احتمال افزایش سرمایه یا خطای داده) — اطمینان کاهش یافت`, 'neg');
   }
   if (has(m.gapToUp)) {
     add(`فاصله تا سقف مجاز ${fmtNum(m.gapToUp, 2)}٪ (دامنه ${fmtNum((m.limitPct || .03) * 100, 0)}٪) → ظرفیت رشد امروز ${fmtNum((m.capacity || 0) * 100, 0)}٪`,

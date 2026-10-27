@@ -48,6 +48,18 @@ def veto_check(inst, m: dict, rules: C.Rules) -> tuple[bool, list[str], list[str
         codes.append("sellQueue")
         fa.append(f"صف فروش {m['sell_queue']:,.0f} برگه در کف مجاز")
 
+    # هزینهٔ معامله: اسپرد بهترین سطح دفتر — فقط با هر دو سمت موجود (آینهٔ JS)
+    book = getattr(inst, "book", None) or []
+    if book:
+        b0 = book[0]
+        bp = (b0.get("bid") or {}).get("p")
+        ap = (b0.get("ask") or {}).get("p")
+        if fin(bp) and bp > 0 and fin(ap) and ap > 0:
+            spread_pct = (ap - bp) / ap * 100
+            if spread_pct > rules.max_spread_pct:
+                codes.append("cost")
+                fa.append(f"اسپرد {spread_pct:,.2f}٪ > {rules.max_spread_pct:,.1f}٪ مجاز")
+
     if fin(m.get("free_float")) and m["free_float"] < rules.min_float:
         codes.append("data"); fa.append(f"شناوری آزاد {m['free_float']:.1f}٪ کمتر از آستانه")
     if rules.require_history and not m.get("has_history"):
@@ -131,9 +143,14 @@ def factor_scores(inst, m: dict, rules: C.Rules, ctx: dict | None = None) -> dic
         (sig(m["slope20"], 0.0, 9.0), w["mid"]["slope"]),
         # چرخش صناعی: رتبهٔ صدکی میانگین تغییر صنعت نماد در میان صنایع
         (sig(sector_pct, 50.0, 0.045), w["mid"]["sector"]),
+        # واگرایی قیمت/RSI روی سوینگ‌های اخیر
+        (100.0 if m["divergence"]["code"] == "bull" else (0.0 if m["divergence"]["code"] == "bear" else NAN), w["mid"]["div"]),
+        # تأیید حجم بر روند: انباشت/توزیع OBV
+        (clamp(sig(m["obv_trend"], 0.0, 6.0)) if fin(m.get("obv_trend")) else NAN, w["mid"]["obv"]),
     ])
     f["detail"]["mid"] = {"sma_gap": sma_gap, "macd_hist": m["macd_hist"], "price_vs_sma": price_vs_sma,
-                          "slope20": m["slope20"], "sector_pct": sector_pct}
+                          "slope20": m["slope20"], "sector_pct": sector_pct,
+                          "divergence": m["divergence"].get("fa", ""), "obv_trend": m.get("obv_trend", NAN)}
 
     vs200 = ((inst.pl - m["sma200"]) / m["sma200"] * 100) if (fin(inst.pl) and fin(m["sma200"]) and m["sma200"]) else NAN
     slope200 = ((m["sma200"] - m["sma200_prev"]) / m["sma200_prev"] * 100) if (
@@ -196,7 +213,7 @@ def grade_of(score: float, confidence: float) -> str:
     return "ضعیف"
 
 
-def score_instrument(f: dict, weights: dict[str, float]) -> dict[str, Any]:
+def score_instrument(f: dict, weights: dict[str, float], m: dict | None = None) -> dict[str, Any]:
     parts = [(f[k], weights.get(k, 0.0)) for k in C.FACTOR_KEYS if weights.get(k, 0)]
     total = _weighted(parts)
     present = [v for v, _ in parts if fin(v)]
@@ -204,6 +221,9 @@ def score_instrument(f: dict, weights: dict[str, float]) -> dict[str, Any]:
     sd = math.sqrt(mean([(v - avg) ** 2 for v in present])) if len(present) > 1 else NAN
     agreement = clamp(100 - sd * 1.35) if fin(sd) else (55.0 if present else 0.0)
     confidence = clamp(f["coverage"] * 100 * (0.65 + 0.35 * (agreement / 100)))
+    # گارد سلامت تاریخچه: پرش غیرواجه → اطمینان ×۰٫۷۵ (آینهٔ JS)
+    if m is not None and fin(m.get("history_gap", 0.0)) and m.get("history_gap", 0.0) > 0:
+        confidence = clamp(confidence * 0.75)
     return {
         "total": round(total, 1) if fin(total) else None,
         "confidence": round(confidence),
@@ -232,6 +252,18 @@ def signal_plan(inst, m: dict, rules: C.Rules) -> dict | None:
     src = "ATR(14)" if (fin(m["atr"]) and m["atr"] > 0) else "برآورد از دامنه نوسان"
     stop = max(inst.tmin if fin(inst.tmin) else 0, entry - rules.stop_atr_mult * atr_val)
     targets = [entry + k * atr_val for k in rules.target_atr_mults]
+    # S/R-aware: نخستین هدفِ عبورکننده از مقاومت پیش از سطح کوتاه می‌شود (آینهٔ JS)
+    res = (m["resistance"] * 0.99) if (fin(m.get("resistance")) and m["resistance"] * 0.99 > entry * 1.002) else None
+    if res is not None:
+        capped = False
+        fixed = []
+        for t in targets:
+            if not capped and t > res:
+                capped = True
+                fixed.append(res)
+            else:
+                fixed.append(t)
+        targets = fixed
     risk = entry - stop
     rr = (targets[1] - entry) / risk if risk > 0 else NAN
     sessions = [max(1, math.ceil(((t - entry) / entry) / limit)) for t in targets]
@@ -241,6 +273,8 @@ def signal_plan(inst, m: dict, rules: C.Rules) -> dict | None:
         "stop_pct": (-(risk / entry) * 100) if risk > 0 else NAN,
         "target_pct": [((t - entry) / entry) * 100 for t in targets],
         "sessions": sessions, "horizon": None,
+        "support": m["support"] if fin(m.get("support")) else None,
+        "resistance": m["resistance"] if fin(m.get("resistance")) else None,
     }
 
 
@@ -274,6 +308,20 @@ def explain(inst, m: dict) -> list[dict[str, str]]:
         add(f"حجم امروز {m['volume_shock']:.1f} برابر میانگین ۳۰ روز"
             + (" (از میانگین ارزش معاملات)" if m.get("volume_shock_source") == "avgVal" else ""),
             "pos" if m["volume_shock"] >= 1.8 else ("neg" if m["volume_shock"] <= 0.7 else "neutral"))
+    div = m.get("divergence") or {}
+    if div.get("code") == "bull":
+        add(f"{div['fa']} — کف پایین‌تر قیمت همراه با RSI بالاتر در سوینگ اخیر", "pos")
+    elif div.get("code") == "bear":
+        add(f"{div['fa']} — سقف بالاتر قیمت همراه با RSI پایین‌تر؛ احتمال اصلاح", "neg")
+    if fin(m.get("obv_trend")):
+        add(f"جریان OBV در ۲۰ جلسه: {'انباشت' if m['obv_trend'] >= 0 else 'توزیع'} معادل {abs(m['obv_trend']) * 100:.1f}٪ حجم دوره",
+            "pos" if m["obv_trend"] >= 0.05 else ("neg" if m["obv_trend"] <= -0.05 else "neutral"))
+    if fin(m.get("support")) and fin(inst.pl) and m["support"] < inst.pl:
+        add(f"نزدیک‌ترین حمایت داده‌محور: {m['support']:,.0f} ({(inst.pl - m['support']) / inst.pl * 100:.1f}٪ پایین‌تر)", "neutral")
+    if fin(m.get("resistance")) and fin(inst.pl) and m["resistance"] > inst.pl:
+        add(f"نزدیک‌ترین مقاومت داده‌محور: {m['resistance']:,.0f} ({(m['resistance'] - inst.pl) / inst.pl * 100:.1f}٪ بالاتر) — اهداف پیش از آن کوتاه شده‌اند", "neutral")
+    if fin(m.get("history_gap", 0.0)) and m.get("history_gap", 0.0) > 0:
+        add(f"پرش غیرمجاز {m['history_gap']:.1f}٪ در تاریخچه (احتمال افزایش سرمایه یا خطای داده) — اطمینان کاهش یافت", "neg")
     if fin(m["gap_to_up"]):
         add(f"فاصله تا سقف مجاز {m['gap_to_up']:.2f}٪ (دامنه {m['limit_pct'] * 100:.0f}٪) → ظرفیت رشد امروز "
             f"{(m['capacity'] or 0) * 100:.0f}٪", "pos" if (m["capacity"] or 0) >= .5 else "neutral")
@@ -351,7 +399,7 @@ def analyze(inst, rules: C.Rules, weights: dict[str, float], ctx: dict | None = 
     m = metrics(inst)
     is_veto, codes, fa = veto_check(inst, m, rules)
     f = factor_scores(inst, m, rules, ctx)
-    score = score_instrument(f, weights)
+    score = score_instrument(f, weights, m)
     plan = None
     if not is_veto:
         plan = signal_plan(inst, m, rules)
@@ -402,7 +450,7 @@ def rank(instruments, rules: C.Rules | None = None, weights: dict | None = None,
             continue
         m = r["metrics"]
         r["factors"] = factor_scores(r["inst"], m, rules, ctx)
-        r["score"] = score_instrument(r["factors"], weights)
+        r["score"] = score_instrument(r["factors"], weights, r["metrics"])
         plan = signal_plan(r["inst"], m, rules)
         if plan is not None:
             plan["horizon"] = horizon_of(r["factors"])

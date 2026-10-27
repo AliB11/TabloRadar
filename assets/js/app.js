@@ -199,6 +199,7 @@ async function scan({ manual = false, withHistory = true } = {}) {
 
   try {
     const histN = withHistory ? Number(U.$('#s-histn')?.value || 40) : 0;
+    const bgPrev = S.insts;   // برای انتقال تاریخچه به نمادهای اسکن جدید
     /* مسیر سریع: فقط اسنپ‌شات — جدول زنده در چند ثانیهٔ اول؛ تاریخچه/غنی‌سازی بعداً در پس‌زمینه */
     const res = await loadMarket({
       historyFor: 0,
@@ -216,6 +217,17 @@ async function scan({ manual = false, withHistory = true } = {}) {
       },
     });
     S.insts = res.instruments;
+    /* حفظ تاریخچهٔ نمادها از اسکن قبلی — واکشی خودکار تاریخچه ندارد و
+     * بدون این انتقال، تکنیکال هر ۶۰ ثانیه از دست می‌رفت. */
+    {
+      const prevBySym = new Map((bgPrev || []).map(i => [i.l18, i]));
+      let carried = 0;
+      for (const it of S.insts) {
+        const prev = prevBySym.get(it.l18);
+        if (prev?.history && !it.history) { it.history = prev.history; carried++; }
+      }
+      if (carried) U.termLog('INFO', `تاریخچهٔ ${carried} نماد از اسکن قبلی حفظ شد`);
+    }
     S.meta = {
       live: res.live, source: res.source, at: new Date(), route: res.route || '',
       kind: res.kind || (res.live ? 'live' : 'live-partial'),
@@ -469,7 +481,7 @@ function renderJSON() {
   if (S.insts.some(i => !Number.isFinite(i.sectorPE))) missing.push('sectorPE');
   if (S.insts.some(i => !(i.book || []).length)) missing.push('orderBook');
   const payload = {
-    tool: 'TabloRadar v4.3',
+    tool: 'TabloRadar v4.4',
     generated_at: new Date().toISOString(),
     tehran_calendar: tehranDate(),
     source: S.meta.source || '—',
